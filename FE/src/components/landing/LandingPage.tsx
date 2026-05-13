@@ -14,14 +14,14 @@ const fadeUp = {
 
 export function LandingPage() {
   return (
-    <main className="flex flex-1 flex-col items-center justify-center px-4 py-12 sm:px-6">
+    <main className="mx-auto flex w-full max-w-5xl flex-1 flex-col items-center justify-center gap-10 px-4 py-10 sm:gap-12 sm:px-6 sm:py-14 lg:flex-row lg:items-stretch lg:justify-between lg:py-16">
       <motion.div
         initial={{ opacity: 0, scale: 0.98 }}
         animate={{ opacity: 1, scale: 1 }}
         transition={{ duration: 0.4, ease: [0.22, 1, 0.36, 1] }}
-        className="w-full max-w-lg"
+        className="w-full max-w-lg shrink-0 lg:max-w-xl"
       >
-        <div className="relative overflow-hidden rounded-3xl border border-slate-200/80 bg-white/90 p-8 shadow-xl shadow-slate-200/50 ring-1 ring-white/60 backdrop-blur-sm sm:p-10">
+        <div className="relative overflow-hidden rounded-3xl border border-slate-200/80 bg-white/90 p-7 shadow-xl shadow-slate-200/50 ring-1 ring-white/60 backdrop-blur-sm sm:p-10">
           <div className="pointer-events-none absolute inset-x-0 top-0 h-1 bg-gradient-to-r from-emerald-500 via-teal-400 to-amber-400" />
 
           <motion.p
@@ -80,12 +80,43 @@ export function LandingPage() {
             variants={fadeUp}
             initial="hidden"
             animate="show"
-            className="mt-6 text-center text-xs text-slate-500"
+            className="mt-6 text-center text-xs text-slate-500 sm:text-left"
           >
             No resume forms. We’ll guide you step by step.
           </motion.p>
         </div>
       </motion.div>
+
+      <motion.aside
+        initial={{ opacity: 0, y: 12 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.45, delay: 0.12, ease: [0.22, 1, 0.36, 1] }}
+        className="flex w-full max-w-lg flex-col gap-4 lg:max-w-md lg:justify-center"
+      >
+        <p className="text-center text-xs font-semibold uppercase tracking-wider text-emerald-800/80 lg:text-left">
+          How it works
+        </p>
+        <ol className="space-y-3 text-sm text-slate-700">
+          {[
+            "Chat with Thekedaar on WhatsApp — say what you need or what work you do.",
+            "We text you a magic link. Open it once; your session stays signed in here.",
+            "In the app, set Profile: hire staff, look for work, or both at once.",
+          ].map((line, i) => (
+            <li
+              key={i}
+              className="flex gap-3 rounded-2xl border border-slate-200/80 bg-white/70 px-4 py-3 shadow-sm backdrop-blur-sm"
+            >
+              <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-emerald-100 text-xs font-bold text-emerald-800">
+                {i + 1}
+              </span>
+              <span className="leading-relaxed">{line}</span>
+            </li>
+          ))}
+        </ol>
+        <p className="text-center text-xs text-slate-500 lg:text-left">
+          Same account for posting jobs and browsing — update anytime in Profile.
+        </p>
+      </motion.aside>
     </main>
   );
 }

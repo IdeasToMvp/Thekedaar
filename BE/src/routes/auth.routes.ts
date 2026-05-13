@@ -1,9 +1,15 @@
 import { Router } from "express";
 import { z } from "zod";
-import { exchangeMagicLinkToken, signSessionJwt, verifySessionJwt } from "../services/magicLink.service";
+import {
+  exchangeMagicLinkToken,
+  signSessionJwt,
+  sessionClaimsFromUserRow,
+} from "../services/magicLink.service";
 import { requestLoginLinkViaWhatsApp } from "../services/requestLoginLink.service";
+import { getUserWithWorkerProfile, updateUserProfile } from "../services/user.service";
 import { allowRateLimit } from "../utils/rateLimit";
 import { normalizePhoneForWhatsApp } from "../utils/phone";
+import { requireSession, type RequestWithSession } from "../middleware/requireSession";
 
 const router = Router();
 
@@ -31,18 +37,80 @@ router.post("/exchange", async (req, res) => {
   }
 });
 
-router.get("/me", (req, res) => {
-  const auth = req.headers.authorization;
-  if (!auth?.startsWith("Bearer ")) {
-    return res.status(401).json({ error: "Unauthorized" });
+router.get("/me", requireSession, async (req, res) => {
+  const session = (req as RequestWithSession).session;
+  const full = await getUserWithWorkerProfile(session.sub);
+  if (!full) {
+    return res.status(404).json({ error: "User not found" });
   }
-  const raw = auth.slice("Bearer ".length).trim();
-  if (!raw) return res.status(401).json({ error: "Unauthorized" });
+  return res.status(200).json({
+    user: {
+      id: full.user.id,
+      sub: full.user.id,
+      phone: full.user.phone,
+      role: full.user.role,
+      hiring_enabled: full.user.hiring_enabled,
+      seeking_enabled: full.user.seeking_enabled,
+      name: full.user.name,
+      city: full.user.city,
+    },
+    worker_profile: full.worker_profile,
+  });
+});
+
+const ProfilePatchSchema = z.object({
+  name: z.string().max(120).optional().nullable(),
+  city: z.string().max(120).optional().nullable(),
+  hiring_enabled: z.boolean().optional(),
+  seeking_enabled: z.boolean().optional(),
+  worker: z
+    .object({
+      job_type: z.string().max(120).optional().nullable(),
+      experience_years: z.number().int().min(0).max(80).optional().nullable(),
+      expected_salary: z.number().int().min(0).optional().nullable(),
+      availability: z.string().max(240).optional().nullable(),
+    })
+    .optional(),
+});
+
+router.patch("/profile", requireSession, async (req, res) => {
+  const session = (req as RequestWithSession).session;
+  const parsed = ProfilePatchSchema.safeParse(req.body);
+  if (!parsed.success) {
+    return res.status(400).json({ error: "Invalid request" });
+  }
+
   try {
-    const user = verifySessionJwt(raw);
-    return res.status(200).json({ user });
-  } catch {
-    return res.status(401).json({ error: "Invalid session" });
+    const updated = await updateUserProfile({
+      userId: session.sub,
+      name: parsed.data.name,
+      city: parsed.data.city,
+      hiring_enabled: parsed.data.hiring_enabled,
+      seeking_enabled: parsed.data.seeking_enabled,
+      worker: parsed.data.worker,
+    });
+    if (!updated) {
+      return res.status(404).json({ error: "User not found" });
+    }
+    const claims = sessionClaimsFromUserRow(updated.user);
+    const sessionToken = signSessionJwt(claims);
+    return res.status(200).json({
+      sessionToken,
+      user: {
+        id: updated.user.id,
+        sub: updated.user.id,
+        phone: updated.user.phone,
+        role: updated.user.role,
+        hiring_enabled: updated.user.hiring_enabled,
+        seeking_enabled: updated.user.seeking_enabled,
+        name: updated.user.name,
+        city: updated.user.city,
+      },
+      worker_profile: updated.worker_profile,
+    });
+  } catch (e: unknown) {
+    const msg = e instanceof Error ? e.message : "Update failed";
+    return res.status(400).json({ error: msg });
   }
 });
 
@@ -84,4 +152,3 @@ router.post("/request-login-link", async (req, res) => {
 });
 
 export default router;
-

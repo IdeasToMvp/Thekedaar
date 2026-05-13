@@ -1,5 +1,6 @@
 import crypto from "crypto";
 import jwt from "jsonwebtoken";
+import type { JwtPayload } from "jsonwebtoken";
 import { supabaseAdmin } from "./supabase.service";
 
 function sha256Hex(input: string): string {
@@ -7,9 +8,11 @@ function sha256Hex(input: string): string {
 }
 
 export type SessionClaims = {
-  sub: string; // user id
+  sub: string;
   phone: string;
   role: "worker" | "recruiter";
+  hiring_enabled: boolean;
+  seeking_enabled: boolean;
 };
 
 export async function createMagicLinkForUser(input: {
@@ -20,7 +23,7 @@ export async function createMagicLinkForUser(input: {
 }): Promise<{ token: string; expiresAt: string }> {
   const rawToken = crypto.randomBytes(32).toString("hex");
   const tokenHash = sha256Hex(rawToken);
-  const ttlMinutes = input.ttlMinutes ?? 60 * 24 * 7; // 7 days
+  const ttlMinutes = input.ttlMinutes ?? 60 * 24 * 7;
   const expiresAt = new Date(Date.now() + ttlMinutes * 60_000).toISOString();
 
   const sb = supabaseAdmin();
@@ -52,7 +55,7 @@ export async function exchangeMagicLinkToken(rawToken: string): Promise<SessionC
 
   const { data: user, error: userErr } = await sb
     .from("users")
-    .select("id,phone,role")
+    .select("id,phone,role,hiring_enabled,seeking_enabled")
     .eq("id", data.user_id)
     .maybeSingle();
   if (userErr) throw userErr;
@@ -64,7 +67,23 @@ export async function exchangeMagicLinkToken(rawToken: string): Promise<SessionC
     .eq("id", data.id);
   if (updErr) throw updErr;
 
-  return { sub: user.id, phone: user.phone, role: user.role as any };
+  const role = (user.role === "recruiter" ? "recruiter" : "worker") as "worker" | "recruiter";
+  const hiring =
+    typeof (user as { hiring_enabled?: boolean }).hiring_enabled === "boolean"
+      ? (user as { hiring_enabled: boolean }).hiring_enabled
+      : role === "recruiter";
+  const seeking =
+    typeof (user as { seeking_enabled?: boolean }).seeking_enabled === "boolean"
+      ? (user as { seeking_enabled: boolean }).seeking_enabled
+      : role === "worker";
+
+  return {
+    sub: user.id,
+    phone: user.phone,
+    role,
+    hiring_enabled: hiring,
+    seeking_enabled: seeking,
+  };
 }
 
 export function signSessionJwt(claims: SessionClaims): string {
@@ -76,6 +95,40 @@ export function signSessionJwt(claims: SessionClaims): string {
 export function verifySessionJwt(token: string): SessionClaims {
   const secret = process.env.SESSION_JWT_SECRET;
   if (!secret) throw new Error("Missing SESSION_JWT_SECRET");
-  return jwt.verify(token, secret, { algorithms: ["HS256"] }) as SessionClaims;
+  const decoded = jwt.verify(token, secret, { algorithms: ["HS256"] }) as JwtPayload & Partial<SessionClaims>;
+
+  const role = (decoded.role === "recruiter" ? "recruiter" : "worker") as "worker" | "recruiter";
+  const hiring =
+    typeof decoded.hiring_enabled === "boolean" ? decoded.hiring_enabled : role === "recruiter";
+  const seeking =
+    typeof decoded.seeking_enabled === "boolean" ? decoded.seeking_enabled : role === "worker";
+
+  return {
+    sub: String(decoded.sub),
+    phone: String(decoded.phone),
+    role,
+    hiring_enabled: hiring,
+    seeking_enabled: seeking,
+  };
 }
 
+export function sessionClaimsFromUserRow(user: {
+  id: string;
+  phone: string;
+  role: string;
+  hiring_enabled?: boolean;
+  seeking_enabled?: boolean;
+}): SessionClaims {
+  const role = (user.role === "recruiter" ? "recruiter" : "worker") as "worker" | "recruiter";
+  const hiring =
+    typeof user.hiring_enabled === "boolean" ? user.hiring_enabled : role === "recruiter";
+  const seeking =
+    typeof user.seeking_enabled === "boolean" ? user.seeking_enabled : role === "worker";
+  return {
+    sub: user.id,
+    phone: user.phone,
+    role,
+    hiring_enabled: hiring,
+    seeking_enabled: seeking,
+  };
+}

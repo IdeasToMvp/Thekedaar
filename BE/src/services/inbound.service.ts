@@ -264,6 +264,7 @@ async function handleWorkerFlow(input: {
       role: "worker",
       name: String(meta.name ?? "").trim() || null,
       city: String(meta.city ?? "").trim() || null,
+      enableSeeking: true,
     });
 
     await upsertWorkerProfile({
@@ -369,6 +370,7 @@ async function handleRecruiterFlow(input: {
       role: "recruiter",
       name: null,
       city: String(meta.city ?? "").trim() || null,
+      enableHiring: true,
     });
 
     await createJob({
