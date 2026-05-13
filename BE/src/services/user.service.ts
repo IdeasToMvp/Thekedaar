@@ -10,6 +10,8 @@ export type UserRow = {
   city: string | null;
   hiring_enabled: boolean;
   seeking_enabled: boolean;
+  /** Present after migration `003_subscription_plan.sql`; treat missing as `free`. */
+  subscription_plan?: string | null;
 };
 
 export type WorkerProfileRow = {
@@ -59,7 +61,7 @@ export async function upsertUserByPhone(input: {
       },
       { onConflict: "phone" },
     )
-    .select("id,phone,role,name,city,hiring_enabled,seeking_enabled")
+    .select("id,phone,role,name,city,hiring_enabled,seeking_enabled,subscription_plan")
     .single();
 
   if (error) throw error;

@@ -15,6 +15,7 @@ export type MeUser = {
   seeking_enabled: boolean;
   name: string | null;
   city: string | null;
+  subscription?: { plan: string; features?: Record<string, boolean> };
 };
 
 export type WorkerProfile = {
@@ -136,7 +137,7 @@ export default function ProfilePage() {
             href="/app"
             className="text-sm font-semibold text-emerald-700 underline-offset-4 hover:underline"
           >
-            ← Dashboard
+            ← Feed
           </Link>
         </div>
 

@@ -10,8 +10,24 @@ import { getUserWithWorkerProfile, updateUserProfile } from "../services/user.se
 import { allowRateLimit } from "../utils/rateLimit";
 import { normalizePhoneForWhatsApp } from "../utils/phone";
 import { requireSession, type RequestWithSession } from "../middleware/requireSession";
+import { subscriptionPayload } from "../utils/subscription";
+import type { UserRow } from "../services/user.service";
 
 const router = Router();
+
+function publicUserJson(user: UserRow) {
+  return {
+    id: user.id,
+    sub: user.id,
+    phone: user.phone,
+    role: user.role,
+    hiring_enabled: user.hiring_enabled,
+    seeking_enabled: user.seeking_enabled,
+    name: user.name,
+    city: user.city,
+    subscription: subscriptionPayload(user),
+  };
+}
 
 const ExchangeSchema = z.object({
   token: z.string().min(40),
@@ -44,16 +60,7 @@ router.get("/me", requireSession, async (req, res) => {
     return res.status(404).json({ error: "User not found" });
   }
   return res.status(200).json({
-    user: {
-      id: full.user.id,
-      sub: full.user.id,
-      phone: full.user.phone,
-      role: full.user.role,
-      hiring_enabled: full.user.hiring_enabled,
-      seeking_enabled: full.user.seeking_enabled,
-      name: full.user.name,
-      city: full.user.city,
-    },
+    user: publicUserJson(full.user),
     worker_profile: full.worker_profile,
   });
 });
@@ -96,16 +103,7 @@ router.patch("/profile", requireSession, async (req, res) => {
     const sessionToken = signSessionJwt(claims);
     return res.status(200).json({
       sessionToken,
-      user: {
-        id: updated.user.id,
-        sub: updated.user.id,
-        phone: updated.user.phone,
-        role: updated.user.role,
-        hiring_enabled: updated.user.hiring_enabled,
-        seeking_enabled: updated.user.seeking_enabled,
-        name: updated.user.name,
-        city: updated.user.city,
-      },
+      user: publicUserJson(updated.user),
       worker_profile: updated.worker_profile,
     });
   } catch (e: unknown) {

@@ -55,7 +55,7 @@ export async function exchangeMagicLinkToken(rawToken: string): Promise<SessionC
 
   const { data: user, error: userErr } = await sb
     .from("users")
-    .select("id,phone,role,hiring_enabled,seeking_enabled")
+    .select("id,phone,role,hiring_enabled,seeking_enabled,subscription_plan")
     .eq("id", data.user_id)
     .maybeSingle();
   if (userErr) throw userErr;
