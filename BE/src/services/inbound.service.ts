@@ -1,0 +1,282 @@
+import { parseIncomingTextMessage, normalizeText } from "../utils/messageParser";
+import { sendWhatsAppText } from "./whatsapp.service";
+import {
+  clearConversationState,
+  getConversationState,
+  setConversationState,
+  type ConversationStep,
+} from "./conversation.service";
+import { upsertUserByPhone } from "./user.service";
+import { upsertWorkerProfile } from "./worker.service";
+import { createJob, findJobsForWorker } from "./jobs.service";
+
+function parseNumber(s: string): number | null {
+  const cleaned = s.replace(/[,₹\s]/g, "");
+  const n = Number(cleaned);
+  return Number.isFinite(n) ? n : null;
+}
+
+function parseYesNo(s: string): boolean | null {
+  const t = normalizeText(s);
+  if (["yes", "y", "haan", "ha", "ok", "available"].includes(t)) return true;
+  if (["no", "n", "nahi", "nahin"].includes(t)) return false;
+  return null;
+}
+
+function isHi(s: string): boolean {
+  const t = normalizeText(s);
+  return ["hi", "hii", "hello", "hey", "start"].includes(t);
+}
+
+function roleChoiceFromText(s: string): "worker" | "recruiter" | null {
+  const t = normalizeText(s);
+  if (t === "1" || t.includes("job") || t.includes("work") || t.includes("naukri")) return "worker";
+  if (t === "2" || t.includes("hire") || t.includes("hiring") || t.includes("employee") || t.includes("staff")) return "recruiter";
+  return null;
+}
+
+export async function handleIncomingWhatsAppMessage(payload: unknown) {
+  const msg = parseIncomingTextMessage(payload);
+  if (!msg) return;
+
+  const phone = msg.from;
+  const text = msg.text;
+  const norm = normalizeText(text);
+
+  if (norm === "reset") {
+    await clearConversationState(phone);
+    await sendWhatsAppText(phone, "Reset done. Send 'Hi' to start again.");
+    return;
+  }
+
+  const state = await getConversationState(phone);
+
+  // Global entry
+  if (state.current_step === "START") {
+    if (isHi(text)) {
+      await setConversationState(phone, "CHOOSE_ROLE", {});
+      await sendWhatsAppText(
+        phone,
+        "Hi! Aap kya karna chahte ho?\n\n1) Looking for Job\n2) Hiring Employee\n\nReply 1 or 2",
+      );
+      return;
+    }
+
+    await sendWhatsAppText(phone, "Send 'Hi' to start. (Type 'reset' anytime)");
+    return;
+  }
+
+  if (state.current_step === "CHOOSE_ROLE") {
+    const role = roleChoiceFromText(text);
+    if (!role) {
+      await sendWhatsAppText(phone, "Please reply 1 (Job) or 2 (Hiring).");
+      return;
+    }
+
+    await setConversationState(phone, role === "worker" ? "WORKER_NAME" : "RECRUITER_JOB_ROLE", {
+      role,
+    });
+
+    await sendWhatsAppText(
+      phone,
+      role === "worker" ? "Great. Aapka naam?" : "Great. Aapko kis role ke liye staff chahiye? (e.g. Cook, Maid, Driver)",
+    );
+    return;
+  }
+
+  // WORKER FLOW
+  if (state.metadata.role === "worker") {
+    await handleWorkerFlow({ phone, text, step: state.current_step, metadata: state.metadata });
+    return;
+  }
+
+  // RECRUITER FLOW
+  if (state.metadata.role === "recruiter") {
+    await handleRecruiterFlow({ phone, text, step: state.current_step, metadata: state.metadata });
+    return;
+  }
+
+  // Fallback
+  await clearConversationState(phone);
+  await sendWhatsAppText(phone, "Something went wrong. Send 'Hi' to start again.");
+}
+
+async function handleWorkerFlow(input: {
+  phone: string;
+  text: string;
+  step: ConversationStep;
+  metadata: Record<string, unknown>;
+}) {
+  const { phone, text, step } = input;
+  const meta = { ...input.metadata };
+
+  if (step === "WORKER_NAME") {
+    meta.name = text.trim();
+    await setConversationState(phone, "WORKER_CITY", meta);
+    await sendWhatsAppText(phone, "City kahan hai? (e.g. Mumbai, Pune, Delhi)");
+    return;
+  }
+
+  if (step === "WORKER_CITY") {
+    meta.city = text.trim();
+    await setConversationState(phone, "WORKER_JOB_TYPE", meta);
+    await sendWhatsAppText(phone, "Kaunsa kaam chahiye? (e.g. Cook, Maid, Driver, Delivery)");
+    return;
+  }
+
+  if (step === "WORKER_JOB_TYPE") {
+    meta.jobType = text.trim();
+    await setConversationState(phone, "WORKER_EXPECTED_SALARY", meta);
+    await sendWhatsAppText(phone, "Expected salary per month? (number only, e.g. 15000)");
+    return;
+  }
+
+  if (step === "WORKER_EXPECTED_SALARY") {
+    const n = parseNumber(text);
+    if (n === null) {
+      await sendWhatsAppText(phone, "Please send salary as a number (e.g. 15000).");
+      return;
+    }
+    meta.expectedSalary = n;
+    await setConversationState(phone, "WORKER_EXPERIENCE", meta);
+    await sendWhatsAppText(phone, "Experience kitne years? (e.g. 2)");
+    return;
+  }
+
+  if (step === "WORKER_EXPERIENCE") {
+    const n = parseNumber(text);
+    if (n === null) {
+      await sendWhatsAppText(phone, "Please send experience as a number (e.g. 2).");
+      return;
+    }
+    meta.experienceYears = n;
+    await setConversationState(phone, "WORKER_AVAILABILITY", meta);
+    await sendWhatsAppText(phone, "Availability? (e.g. Immediate / 1 week / Weekend only)");
+    return;
+  }
+
+  if (step === "WORKER_AVAILABILITY") {
+    meta.availability = text.trim();
+
+    const user = await upsertUserByPhone({
+      phone,
+      role: "worker",
+      name: String(meta.name ?? "").trim() || null,
+      city: String(meta.city ?? "").trim() || null,
+    });
+
+    await upsertWorkerProfile({
+      userId: user.id,
+      jobType: String(meta.jobType ?? "").trim() || null,
+      expectedSalary: typeof meta.expectedSalary === "number" ? meta.expectedSalary : null,
+      experienceYears: typeof meta.experienceYears === "number" ? meta.experienceYears : null,
+      availability: String(meta.availability ?? "").trim() || null,
+    });
+
+    // quick match (best-effort)
+    const jobs = await findJobsForWorker({
+      city: (meta.city as string | undefined) ?? null,
+      jobType: (meta.jobType as string | undefined) ?? null,
+    });
+
+    await clearConversationState(phone);
+
+    if (jobs.length === 0) {
+      await sendWhatsAppText(phone, "Profile saved. Abhi match nahi mila. Hum aapko update karenge.");
+      return;
+    }
+
+    const lines = jobs
+      .slice(0, 3)
+      .map((j: any, idx: number) => `${idx + 1}) ${j.title} - ${j.city ?? "City NA"} - ₹${j.salary ?? "NA"}`);
+    await sendWhatsAppText(phone, `Profile saved. Kuch jobs:\n\n${lines.join("\n")}`);
+    return;
+  }
+
+  await clearConversationState(phone);
+  await sendWhatsAppText(phone, "Send 'Hi' to start again.");
+}
+
+async function handleRecruiterFlow(input: {
+  phone: string;
+  text: string;
+  step: ConversationStep;
+  metadata: Record<string, unknown>;
+}) {
+  const { phone, text, step } = input;
+  const meta = { ...input.metadata };
+
+  if (step === "RECRUITER_JOB_ROLE") {
+    meta.jobTitle = text.trim();
+    await setConversationState(phone, "RECRUITER_CITY", meta);
+    await sendWhatsAppText(phone, "Job city/location? (e.g. Mumbai)");
+    return;
+  }
+
+  if (step === "RECRUITER_CITY") {
+    meta.city = text.trim();
+    await setConversationState(phone, "RECRUITER_SALARY", meta);
+    await sendWhatsAppText(phone, "Salary per month? (number only, e.g. 18000)");
+    return;
+  }
+
+  if (step === "RECRUITER_SALARY") {
+    const n = parseNumber(text);
+    if (n === null) {
+      await sendWhatsAppText(phone, "Please send salary as a number (e.g. 18000).");
+      return;
+    }
+    meta.salary = n;
+    await setConversationState(phone, "RECRUITER_ACCOMMODATION", meta);
+    await sendWhatsAppText(phone, "Accommodation available? Reply yes/no");
+    return;
+  }
+
+  if (step === "RECRUITER_ACCOMMODATION") {
+    const yn = parseYesNo(text);
+    if (yn === null) {
+      await sendWhatsAppText(phone, "Please reply yes or no (haan/nahi also ok).");
+      return;
+    }
+    meta.accommodation = yn;
+    await setConversationState(phone, "RECRUITER_TIMING", meta);
+    await sendWhatsAppText(phone, "Timing? (e.g. 9am-7pm)");
+    return;
+  }
+
+  if (step === "RECRUITER_TIMING") {
+    meta.timing = text.trim();
+    await setConversationState(phone, "RECRUITER_URGENCY", meta);
+    await sendWhatsAppText(phone, "Urgency? (Immediate / 1 week / Flexible)");
+    return;
+  }
+
+  if (step === "RECRUITER_URGENCY") {
+    meta.urgency = text.trim();
+
+    const recruiter = await upsertUserByPhone({
+      phone,
+      role: "recruiter",
+      name: null,
+      city: String(meta.city ?? "").trim() || null,
+    });
+
+    await createJob({
+      recruiterId: recruiter.id,
+      title: String(meta.jobTitle ?? "").trim() || "Job",
+      city: String(meta.city ?? "").trim() || null,
+      salary: typeof meta.salary === "number" ? meta.salary : null,
+      timing: String(meta.timing ?? "").trim() || null,
+      accommodation: typeof meta.accommodation === "boolean" ? meta.accommodation : null,
+      urgency: String(meta.urgency ?? "").trim() || null,
+    });
+
+    await clearConversationState(phone);
+    await sendWhatsAppText(phone, "Job posted. Hum matching workers aapko jaldi bhejenge.");
+    return;
+  }
+
+  await clearConversationState(phone);
+  await sendWhatsAppText(phone, "Send 'Hi' to start again.");
+}
+

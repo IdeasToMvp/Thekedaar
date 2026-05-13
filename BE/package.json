@@ -14,7 +14,7 @@
   "type": "commonjs",
   "dependencies": {
     "@google/generative-ai": "^0.24.1",
-    "@prisma/client": "^7.8.0",
+    "@supabase/supabase-js": "^2.105.4",
     "axios": "^1.16.0",
     "body-parser": "^2.2.2",
     "bullmq": "^5.76.8",
@@ -26,7 +26,6 @@
     "ioredis": "^5.10.1",
     "morgan": "^1.10.1",
     "openai": "^6.37.0",
-    "prisma": "^7.8.0",
     "uuid": "^14.0.0",
     "winston": "^3.19.0",
     "zod": "^4.4.3"
