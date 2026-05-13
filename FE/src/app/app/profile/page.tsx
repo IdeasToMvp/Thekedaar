@@ -72,6 +72,11 @@ export default function ProfilePage() {
     void load();
   }, [load]);
 
+  async function logout() {
+    await fetch("/api/auth/logout", { method: "POST" });
+    router.replace("/login");
+  }
+
   async function save() {
     setError(null);
     setSaved(false);
@@ -273,6 +278,19 @@ export default function ProfilePage() {
             >
               {saving ? "Saving…" : "Save changes"}
             </motion.button>
+
+            <div className="mt-8 border-t border-slate-200 pt-8">
+              <h2 className="text-sm font-bold text-slate-900">Session</h2>
+              <p className="mt-1 text-xs text-slate-500">Sign out on this device. Use the Feed link above to go back to listings.</p>
+              <motion.button
+                type="button"
+                whileTap={{ scale: 0.98 }}
+                onClick={() => void logout()}
+                className="mt-4 flex h-12 w-full items-center justify-center rounded-2xl border-2 border-slate-200 bg-white text-sm font-semibold text-slate-800 hover:border-slate-300 hover:bg-slate-50 sm:w-auto sm:min-w-[200px]"
+              >
+                Logout
+              </motion.button>
+            </div>
           </div>
         </ElevatedCard>
       </div>

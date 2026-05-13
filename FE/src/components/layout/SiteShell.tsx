@@ -3,23 +3,13 @@
 import { motion } from "framer-motion";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { useEffect, useState } from "react";
 
+/**
+ * Auth for nav: /app is already protected by middleware (session cookie).
+ * Avoids repeated client /api/auth/me calls on every navigation.
+ */
 export function SiteShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
-  const [authed, setAuthed] = useState<boolean | null>(null);
-
-  useEffect(() => {
-    let cancelled = false;
-    (async () => {
-      const r = await fetch("/api/auth/me", { cache: "no-store" });
-      if (!cancelled) setAuthed(r.ok);
-    })();
-    return () => {
-      cancelled = true;
-    };
-  }, [pathname]);
-
   const onApp = pathname?.startsWith("/app") ?? false;
 
   return (
@@ -55,17 +45,15 @@ export function SiteShell({ children }: { children: React.ReactNode }) {
           </Link>
 
           <nav className="flex shrink-0 flex-wrap items-center justify-end gap-1.5 text-sm sm:gap-2">
-            {authed ? (
+            {onApp ? (
               <>
                 <Link
                   href="/app"
                   className={`rounded-full px-3 py-1.5 font-medium transition ${
-                    onApp && pathname === "/app"
-                      ? "bg-emerald-100 text-emerald-900"
-                      : "text-slate-700 hover:bg-slate-100"
+                    pathname === "/app" ? "bg-emerald-100 text-emerald-900" : "text-slate-700 hover:bg-slate-100"
                   }`}
                 >
-                  Dashboard
+                  Feed
                 </Link>
                 <Link
                   href="/app/profile"
