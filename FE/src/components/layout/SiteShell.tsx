@@ -1,0 +1,53 @@
+"use client";
+
+import { motion } from "framer-motion";
+import Link from "next/link";
+
+export function SiteShell({ children }: { children: React.ReactNode }) {
+  return (
+    <div className="relative flex min-h-screen flex-col">
+      {/* Soft animated wash — stays light, never blocks interaction */}
+      <div className="pointer-events-none fixed inset-0 overflow-hidden">
+        <motion.div
+          aria-hidden
+          className="absolute -top-40 -right-32 h-[28rem] w-[28rem] rounded-full bg-emerald-200/50 blur-3xl"
+          animate={{ scale: [1, 1.08, 1], opacity: [0.45, 0.65, 0.45] }}
+          transition={{ duration: 10, repeat: Infinity, ease: "easeInOut" }}
+        />
+        <motion.div
+          aria-hidden
+          className="absolute -bottom-32 -left-24 h-[26rem] w-[26rem] rounded-full bg-amber-100/60 blur-3xl"
+          animate={{ scale: [1, 1.12, 1], opacity: [0.35, 0.5, 0.35] }}
+          transition={{ duration: 12, repeat: Infinity, ease: "easeInOut", delay: 1 }}
+        />
+        <motion.div
+          aria-hidden
+          className="absolute left-1/2 top-1/3 h-[20rem] w-[36rem] -translate-x-1/2 rounded-full bg-white/40 blur-3xl"
+          animate={{ x: ["-45%", "-50%", "-55%"] }}
+          transition={{ duration: 18, repeat: Infinity, ease: "easeInOut" }}
+        />
+      </div>
+
+      <header className="relative z-20 border-b border-slate-200/60 bg-white/70 backdrop-blur-md">
+        <div className="mx-auto flex max-w-5xl items-center justify-between px-4 py-3 sm:px-6">
+          <Link href="/" className="flex items-center gap-2 text-slate-900">
+            <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-emerald-600 text-sm font-bold text-white shadow-sm shadow-emerald-600/25">
+              T
+            </span>
+            <span className="text-base font-semibold tracking-tight">Thekedaar</span>
+          </Link>
+          <nav className="flex items-center gap-2 text-sm">
+            <Link
+              href="/login"
+              className="rounded-full px-3 py-1.5 font-medium text-slate-700 transition hover:bg-slate-100"
+            >
+              Login
+            </Link>
+          </nav>
+        </div>
+      </header>
+
+      <div className="relative z-10 flex flex-1 flex-col">{children}</div>
+    </div>
+  );
+}

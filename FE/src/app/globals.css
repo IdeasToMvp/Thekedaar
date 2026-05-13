@@ -1,8 +1,15 @@
 @import "tailwindcss";
 
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  /* Always light — avoids OS dark mode washing out text on white cards */
+  --background: #f4f1ec;
+  --background-2: #e8f0eb;
+  --foreground: #0f172a;
+  --muted: #475569;
+  --card: #ffffff;
+  --accent: #166534;
+  --accent-soft: #dcfce7;
+  --ring: #22c55e;
 }
 
 @theme inline {
@@ -12,15 +19,24 @@
   --font-mono: var(--font-geist-mono);
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+body {
+  min-height: 100%;
+  background-color: var(--background);
+  background-image:
+    radial-gradient(ellipse 120% 80% at 50% -20%, rgb(220 252 231 / 0.85), transparent),
+    radial-gradient(ellipse 90% 60% at 100% 0%, rgb(254 243 199 / 0.35), transparent),
+    radial-gradient(ellipse 70% 50% at 0% 100%, rgb(224 231 255 / 0.25), transparent);
+  background-attachment: fixed;
+  color: var(--foreground);
+  font-family: var(--font-geist-sans), ui-sans-serif, system-ui, sans-serif;
 }
 
-body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+/* Subtle grid for depth */
+.page-grid-bg::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='40' height='40' viewBox='0 0 40 40'%3E%3Cpath d='M0 0h40v40H0z' fill='none'/%3E%3Cpath d='M0 0h1v1H0z' fill='%230f172a' fill-opacity='0.03'/%3E%3C/svg%3E");
+  pointer-events: none;
+  z-index: 0;
 }
