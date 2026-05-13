@@ -17,5 +17,9 @@ npm-debug.log*
 
 # mac
 .DS_Store
+
+# AI assistant metadata (do not commit)
 AGENTS.md
 CLAUDE.md
+**/AGENTS.md
+**/CLAUDE.md
