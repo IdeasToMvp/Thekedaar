@@ -51,7 +51,7 @@ export function LandingPage() {
             animate="show"
             className="mt-4 text-base leading-relaxed text-slate-600"
           >
-            Maids, cooks, drivers, guards, helpers — local jobs, local people. Log in with the same mobile number you use on WhatsApp.
+            Maids, cooks, drivers, guards, helpers — local jobs, local people. Start on WhatsApp; we’ll send you a link to open your profile here — no password, no OTP.
           </motion.p>
 
           <motion.div
@@ -65,7 +65,7 @@ export function LandingPage() {
               href="/login"
               className="inline-flex h-12 flex-1 items-center justify-center rounded-2xl bg-emerald-600 px-6 text-sm font-semibold text-white shadow-lg shadow-emerald-600/25 transition hover:bg-emerald-700 active:scale-[0.98]"
             >
-              Continue with phone
+              How to sign in
             </Link>
             <Link
               href="/app"

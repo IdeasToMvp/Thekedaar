@@ -1,27 +1,42 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { useRouter } from "next/navigation";
+import { useParams, useRouter } from "next/navigation";
 import { motion } from "framer-motion";
 import { ElevatedCard, PageShell } from "@/components/PageShell";
 
-export default function MagicLoginPage({ params }: { params: { token: string } }) {
+function tokenFromParams(params: ReturnType<typeof useParams>): string | null {
+  const raw = params?.token;
+  if (typeof raw === "string" && raw.length >= 40) return raw;
+  if (Array.isArray(raw) && raw[0] && typeof raw[0] === "string" && raw[0].length >= 40) return raw[0];
+  return null;
+}
+
+export default function MagicLoginPage() {
   const router = useRouter();
+  const routeParams = useParams();
   const [status, setStatus] = useState<"loading" | "error">("loading");
   const [message, setMessage] = useState<string>("Logging you in…");
 
   useEffect(() => {
+    const token = tokenFromParams(routeParams);
+    if (!token) {
+      setStatus("error");
+      setMessage("Invalid login link. Open the link again from WhatsApp.");
+      return;
+    }
+
     let cancelled = false;
     (async () => {
       try {
         const resp = await fetch("/api/auth/exchange", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ token: params.token }),
+          body: JSON.stringify({ token }),
         });
         const data = await resp.json().catch(() => ({}));
         if (!resp.ok) {
-          throw new Error(data?.error ?? "Login failed");
+          throw new Error(typeof data?.error === "string" ? data.error : "Login failed");
         }
         if (cancelled) return;
         router.replace("/app");
@@ -34,7 +49,7 @@ export default function MagicLoginPage({ params }: { params: { token: string } }
     return () => {
       cancelled = true;
     };
-  }, [params.token, router]);
+  }, [routeParams, router]);
 
   return (
     <PageShell>
@@ -43,7 +58,9 @@ export default function MagicLoginPage({ params }: { params: { token: string } }
         <h1 className="mt-2 text-2xl font-bold tracking-tight text-slate-900 sm:text-3xl">
           {status === "loading" ? "Logging you in…" : "Could not log in"}
         </h1>
-        <p className={`mt-3 text-sm leading-relaxed sm:text-base ${status === "error" ? "font-medium text-red-800" : "text-slate-600"}`}>
+        <p
+          className={`mt-3 text-sm leading-relaxed sm:text-base ${status === "error" ? "font-medium text-red-800" : "text-slate-600"}`}
+        >
           {message}
         </p>
 

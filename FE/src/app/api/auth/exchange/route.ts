@@ -3,7 +3,7 @@ import { NextResponse } from "next/server";
 export async function POST(req: Request) {
   const body = await req.json().catch(() => null);
   const token = body?.token;
-  if (typeof token !== "string" || token.length < 10) {
+  if (typeof token !== "string" || token.length < 40) {
     return NextResponse.json({ error: "Invalid request" }, { status: 400 });
   }
 
@@ -35,7 +35,7 @@ export async function POST(req: Request) {
   res.cookies.set(cookieName, sessionToken, {
     httpOnly: true,
     sameSite: "lax",
-    secure: true,
+    secure: process.env.NODE_ENV === "production",
     path: "/",
     maxAge: 60 * 60 * 24 * 30,
   });
