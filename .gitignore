@@ -17,3 +17,5 @@ npm-debug.log*
 
 # mac
 .DS_Store
+AGENTS.md
+CLAUDE.md
