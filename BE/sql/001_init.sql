@@ -116,5 +116,19 @@ create trigger trg_conversation_states_updated_at
 before update on public.conversation_states
 for each row execute function public.set_updated_at();
 
+-- MAGIC LINK TOKENS (one-time)
+create table if not exists public.magic_link_tokens (
+  id uuid primary key default gen_random_uuid(),
+  user_id uuid not null references public.users(id) on delete cascade,
+  token_hash text not null,
+  expires_at timestamptz not null,
+  used_at timestamptz,
+  created_at timestamptz not null default now()
+);
+
+create unique index if not exists magic_link_tokens_hash_uq on public.magic_link_tokens (token_hash);
+create index if not exists magic_link_tokens_user_id_idx on public.magic_link_tokens (user_id);
+create index if not exists magic_link_tokens_expires_at_idx on public.magic_link_tokens (expires_at);
+
 commit;
 

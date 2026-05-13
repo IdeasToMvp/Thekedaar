@@ -2,6 +2,7 @@ import express from "express";
 import cors from "cors";
 import dotenv from "dotenv";
 import webhookRoutes from "./routes/webhook.routes";
+import authRoutes from "./routes/auth.routes";
 
 dotenv.config();
 
@@ -15,6 +16,7 @@ app.get("/", (_, res) => {
 });
 
 app.use("/webhooks", webhookRoutes);
+app.use("/api/auth", authRoutes);
 
 const PORT = process.env.PORT || 5000;
 

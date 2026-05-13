@@ -9,6 +9,7 @@ import {
 import { upsertUserByPhone } from "./user.service";
 import { upsertWorkerProfile } from "./worker.service";
 import { createJob, findJobsForWorker } from "./jobs.service";
+import { createMagicLinkForUser } from "./magicLink.service";
 
 type FlowRole = "worker" | "recruiter";
 
@@ -281,15 +282,24 @@ async function handleWorkerFlow(input: {
 
     await clearConversationState(phone);
 
-    if (jobs.length === 0) {
-      await sendWhatsAppText(phone, "Profile saved. Abhi match nahi mila. Hum aapko update karenge.");
-      return;
+    const webBase = process.env.WEB_BASE_URL;
+    let loginLine = "";
+    if (webBase) {
+      const { token } = await createMagicLinkForUser({
+        userId: user.id,
+        phone: user.phone,
+        role: "worker",
+      });
+      loginLine = `https://${webBase.replace(/^https?:\/\//, "").replace(/\/$/, "")}/login/${token}`;
     }
 
-    const lines = jobs
-      .slice(0, 3)
-      .map((j: any, idx: number) => `${idx + 1}) ${j.title} - ${j.city ?? "City NA"} - ₹${j.salary ?? "NA"}`);
-    await sendWhatsAppText(phone, `Profile saved. Kuch jobs:\n\n${lines.join("\n")}`);
+    const msgText =
+      "Thanks! We’re finding matching jobs/profiles near you 🚀\n\n" +
+      "Meanwhile, you can explore jobs and manage your profile here:\n\n" +
+      (loginLine || "(link coming soon)") +
+      "\n\nWe’ll also notify you directly on WhatsApp when new matches arrive.";
+
+    await sendWhatsAppText(phone, msgText);
     return;
   }
 
@@ -372,7 +382,25 @@ async function handleRecruiterFlow(input: {
     });
 
     await clearConversationState(phone);
-    await sendWhatsAppText(phone, "Job posted. Hum matching workers aapko jaldi bhejenge.");
+
+    const webBase = process.env.WEB_BASE_URL;
+    let loginLine = "";
+    if (webBase) {
+      const { token } = await createMagicLinkForUser({
+        userId: recruiter.id,
+        phone: recruiter.phone,
+        role: "recruiter",
+      });
+      loginLine = `https://${webBase.replace(/^https?:\/\//, "").replace(/\/$/, "")}/login/${token}`;
+    }
+
+    const msgText =
+      "Thanks! We’re finding matching candidates near you 🚀\n\n" +
+      "Meanwhile, you can manage your job posting and candidates here:\n\n" +
+      (loginLine || "(link coming soon)") +
+      "\n\nWe’ll also notify you directly on WhatsApp when new matches arrive.";
+
+    await sendWhatsAppText(phone, msgText);
     return;
   }
 
