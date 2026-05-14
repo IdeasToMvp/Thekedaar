@@ -13,11 +13,11 @@ const PAGE_SIZE = 8;
 type MeUser = {
   id: string;
   phone: string;
-  role: string;
-  hiring_enabled: boolean;
-  seeking_enabled: boolean;
   name: string | null;
   city: string | null;
+  current_mode: "worker" | "recruiter";
+  can_seek: boolean;
+  can_hire: boolean;
   subscription?: unknown;
 };
 

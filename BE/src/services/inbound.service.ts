@@ -6,10 +6,16 @@ import {
   setConversationState,
   type ConversationStep,
 } from "./conversation.service";
-import { upsertUserByPhone } from "./user.service";
+import { upsertIdentityByPhone } from "./user.service";
 import { upsertWorkerProfile } from "./worker.service";
+import { upsertRecruiterProfile } from "./recruiter.service";
 import { createJob, findJobsForWorker } from "./jobs.service";
 import { createMagicLinkForUser } from "./magicLink.service";
+import {
+  parseQuickCommand,
+  detectHiringIntent,
+  detectJobSeekingIntent,
+} from "../utils/intentRouter";
 
 type FlowRole = "worker" | "recruiter";
 
@@ -44,17 +50,24 @@ function isHi(s: string): boolean {
 function roleChoiceFromText(s: string): "worker" | "recruiter" | null {
   const t = normalizeText(s);
   if (t === "1" || t.includes("job") || t.includes("work") || t.includes("naukri")) return "worker";
-  if (t === "2" || t.includes("hire") || t.includes("hiring") || t.includes("employee") || t.includes("staff")) return "recruiter";
+  if (t === "2" || t.includes("hire") || t.includes("hiring") || t.includes("employee") || t.includes("staff"))
+    return "recruiter";
+  if (detectJobSeekingIntent(s)) return "worker";
+  if (detectHiringIntent(s)) return "recruiter";
   return null;
 }
 
 function historyPush(meta: Record<string, unknown>, step: ConversationStep): Record<string, unknown> {
-  const prev = Array.isArray((meta as any)._history) ? ((meta as any)._history as unknown[]) : [];
+  const prev = Array.isArray((meta as { _history?: unknown })._history)
+    ? ((meta as { _history: unknown[] })._history as unknown[])
+    : [];
   return { ...meta, _history: [...prev, step] };
 }
 
 function historyPop(meta: Record<string, unknown>): { prevStep: ConversationStep | null; nextMeta: Record<string, unknown> } {
-  const prev = Array.isArray((meta as any)._history) ? ((meta as any)._history as unknown[]) : [];
+  const prev = Array.isArray((meta as { _history?: unknown })._history)
+    ? ((meta as { _history: unknown[] })._history as unknown[])
+    : [];
   const last = prev.length > 0 ? prev[prev.length - 1] : null;
   const trimmed = prev.length > 0 ? prev.slice(0, -1) : prev;
   return {
@@ -65,7 +78,13 @@ function historyPop(meta: Record<string, unknown>): { prevStep: ConversationStep
 
 function promptForStep(role: FlowRole, step: ConversationStep): string {
   if (step === "CHOOSE_ROLE") {
-    return "Hi! Aap kya karna chahte ho?\n\n1) Looking for Job\n2) Hiring Employee\n\nReply 1 or 2\n\n(back = previous, reset = restart)";
+    return (
+      "Hi! Aap abhi kya karna chahte ho?\n\n" +
+      "1) Looking for Job\n" +
+      "2) Hiring / staff chahiye\n\n" +
+      "Reply 1 or 2 — ya bhejo: hire | find jobs | switch | post job | work | apply\n\n" +
+      "(back = previous, reset = restart)"
+    );
   }
 
   if (role === "worker") {
@@ -87,7 +106,6 @@ function promptForStep(role: FlowRole, step: ConversationStep): string {
     }
   }
 
-  // recruiter
   switch (step) {
     case "RECRUITER_JOB_ROLE":
       return "Aapko kis role ke liye staff chahiye? (e.g. Cook, Maid, Driver)\n(Type 'back' to go previous step)";
@@ -106,6 +124,32 @@ function promptForStep(role: FlowRole, step: ConversationStep): string {
   }
 }
 
+async function beginWorkerOnboarding(phone: string, lastIntent: string) {
+  const meta = { role: "worker" as FlowRole, _history: ["CHOOSE_ROLE" as const] };
+  await setConversationState(phone, "WORKER_NAME", meta, {
+    last_intent: lastIntent,
+    current_flow: "worker_onboarding",
+    current_mode: "worker",
+  });
+  await sendWhatsAppText(
+    phone,
+    "Looking for work 👍 Chalo profile banate hain.\n\n" + promptForStep("worker", "WORKER_NAME"),
+  );
+}
+
+async function beginRecruiterOnboarding(phone: string, lastIntent: string) {
+  const meta = { role: "recruiter" as FlowRole, _history: ["CHOOSE_ROLE" as const] };
+  await setConversationState(phone, "RECRUITER_JOB_ROLE", meta, {
+    last_intent: lastIntent,
+    current_flow: "hiring_flow",
+    current_mode: "recruiter",
+  });
+  await sendWhatsAppText(
+    phone,
+    "Got it 👍 Looks like you want to hire someone now.\n\n" + promptForStep("recruiter", "RECRUITER_JOB_ROLE"),
+  );
+}
+
 export async function handleIncomingWhatsAppMessage(payload: unknown) {
   const msg = parseIncomingTextMessage(payload);
   if (!msg) return;
@@ -117,7 +161,14 @@ export async function handleIncomingWhatsAppMessage(payload: unknown) {
   if (isHelpCommand(text)) {
     await sendWhatsAppText(
       phone,
-      "Commands:\n- back (previous question)\n- reset (start over)\n\nSend 'Hi' to start.",
+      "Commands:\n" +
+        "- hire — start hiring flow\n" +
+        "- find jobs / work / apply — looking for work\n" +
+        "- switch — pick job vs hiring again\n" +
+        "- post job — same as hire\n" +
+        "- back — previous question\n" +
+        "- reset — start over\n\n" +
+        "Send 'Hi' anytime to open the menu. Beech flow me bhi 'hire' / 'need job' likh sakte ho — hum switch kar denge.",
     );
     return;
   }
@@ -131,13 +182,11 @@ export async function handleIncomingWhatsAppMessage(payload: unknown) {
   const state = await getConversationState(phone);
 
   if (isBackCommand(text)) {
-    // Move to previous step (best-effort) without losing already captured metadata
     if (state.current_step === "START") {
       await sendWhatsAppText(phone, "You are already at start. Send 'Hi' to begin.");
       return;
     }
 
-    // If no history stored yet, just go back to START.
     const { prevStep, nextMeta } = historyPop(state.metadata);
     const stepToGo: ConversationStep = prevStep ?? "START";
 
@@ -153,14 +202,66 @@ export async function handleIncomingWhatsAppMessage(payload: unknown) {
     return;
   }
 
-  // Global entry
-  if (state.current_step === "START") {
-    if (isHi(text)) {
-      await setConversationState(phone, "CHOOSE_ROLE", {});
+  const cmd = parseQuickCommand(text);
+
+  if (state.current_step !== "START" && state.current_step !== "CHOOSE_ROLE") {
+    const flowRole = state.metadata.role as FlowRole | undefined;
+    if (flowRole === "worker" && detectHiringIntent(text)) {
+      const meta = { role: "recruiter" as FlowRole, _history: ["CHOOSE_ROLE" as const] };
+      await setConversationState(phone, "RECRUITER_JOB_ROLE", meta, {
+        last_intent: "hiring_intent_switch",
+        current_flow: "hiring_flow",
+        current_mode: "recruiter",
+      });
       await sendWhatsAppText(
         phone,
-        promptForStep("worker", "CHOOSE_ROLE"),
+        "Got it 👍 Hiring mode on. What kind of worker are you looking for? (e.g. Maid, Cook, Driver)",
       );
+      return;
+    }
+    if (flowRole === "recruiter" && detectJobSeekingIntent(text)) {
+      const meta = { role: "worker" as FlowRole, _history: ["CHOOSE_ROLE" as const] };
+      await setConversationState(phone, "WORKER_NAME", meta, {
+        last_intent: "job_intent_switch",
+        current_flow: "worker_onboarding",
+        current_mode: "worker",
+      });
+      await sendWhatsAppText(phone, "Sure — job search mode. Aapka naam?");
+      return;
+    }
+  }
+
+  const quickEntry = state.current_step === "START" || state.current_step === "CHOOSE_ROLE";
+  if (quickEntry) {
+    if (cmd === "switch") {
+      await setConversationState(phone, "CHOOSE_ROLE", {}, { last_intent: "switch", current_flow: "idle" });
+      await sendWhatsAppText(phone, promptForStep("worker", "CHOOSE_ROLE"));
+      return;
+    }
+
+    if (cmd === "find_jobs" || cmd === "work" || cmd === "apply") {
+      await beginWorkerOnboarding(phone, cmd ?? "find_jobs");
+      return;
+    }
+
+    if (cmd === "hire" || cmd === "post_job") {
+      await beginRecruiterOnboarding(phone, cmd ?? "hire");
+      return;
+    }
+  }
+
+  if (state.current_step === "START") {
+    if (isHi(text)) {
+      await setConversationState(phone, "CHOOSE_ROLE", {}, { last_intent: "hi", current_flow: "idle" });
+      await sendWhatsAppText(phone, promptForStep("worker", "CHOOSE_ROLE"));
+      return;
+    }
+    if (detectHiringIntent(text)) {
+      await beginRecruiterOnboarding(phone, "hiring_intent");
+      return;
+    }
+    if (detectJobSeekingIntent(text)) {
+      await beginWorkerOnboarding(phone, "job_intent");
       return;
     }
 
@@ -171,33 +272,31 @@ export async function handleIncomingWhatsAppMessage(payload: unknown) {
   if (state.current_step === "CHOOSE_ROLE") {
     const role = roleChoiceFromText(text);
     if (!role) {
-      await sendWhatsAppText(phone, "Please reply 1 (Job) or 2 (Hiring).");
+      await sendWhatsAppText(phone, "Please reply 1 (Job) or 2 (Hiring) — ya bhejo: hire / find jobs");
       return;
     }
 
     const nextStep: ConversationStep = role === "worker" ? "WORKER_NAME" : "RECRUITER_JOB_ROLE";
-    await setConversationState(phone, nextStep, historyPush({ role }, "CHOOSE_ROLE"));
+    await setConversationState(phone, nextStep, historyPush({ role }, "CHOOSE_ROLE"), {
+      last_intent: "choose_role",
+      current_flow: role === "worker" ? "worker_onboarding" : "hiring_flow",
+      current_mode: role,
+    });
 
-    await sendWhatsAppText(
-      phone,
-      promptForStep(role, nextStep),
-    );
+    await sendWhatsAppText(phone, promptForStep(role, nextStep));
     return;
   }
 
-  // WORKER FLOW
   if (state.metadata.role === "worker") {
     await handleWorkerFlow({ phone, text, step: state.current_step, metadata: state.metadata });
     return;
   }
 
-  // RECRUITER FLOW
   if (state.metadata.role === "recruiter") {
     await handleRecruiterFlow({ phone, text, step: state.current_step, metadata: state.metadata });
     return;
   }
 
-  // Fallback
   await clearConversationState(phone);
   await sendWhatsAppText(phone, "Something went wrong. Send 'Hi' to start again.");
 }
@@ -259,24 +358,22 @@ async function handleWorkerFlow(input: {
   if (step === "WORKER_AVAILABILITY") {
     meta.availability = text.trim();
 
-    const user = await upsertUserByPhone({
+    const user = await upsertIdentityByPhone({
       phone,
-      role: "worker",
       name: String(meta.name ?? "").trim() || null,
       city: String(meta.city ?? "").trim() || null,
-      enableSeeking: true,
+      currentMode: "worker",
     });
 
     await upsertWorkerProfile({
       userId: user.id,
-      jobType: String(meta.jobType ?? "").trim() || null,
-      expectedSalary: typeof meta.expectedSalary === "number" ? meta.expectedSalary : null,
+      role: String(meta.jobType ?? "").trim() || null,
       experienceYears: typeof meta.experienceYears === "number" ? meta.experienceYears : null,
+      expectedSalary: typeof meta.expectedSalary === "number" ? meta.expectedSalary : null,
       availability: String(meta.availability ?? "").trim() || null,
     });
 
-    // quick match (best-effort)
-    const jobs = await findJobsForWorker({
+    await findJobsForWorker({
       city: (meta.city as string | undefined) ?? null,
       jobType: (meta.jobType as string | undefined) ?? null,
     });
@@ -289,16 +386,16 @@ async function handleWorkerFlow(input: {
       const { token } = await createMagicLinkForUser({
         userId: user.id,
         phone: user.phone,
-        role: "worker",
       });
       loginLine = `https://${webBase.replace(/^https?:\/\//, "").replace(/\/$/, "")}/login/${token}`;
     }
 
     const msgText =
-      "Thanks! We’re finding matching jobs/profiles near you 🚀\n\n" +
-      "Meanwhile, you can explore jobs and manage your profile here:\n\n" +
+      "Thanks! We’re finding matching jobs near you 🚀\n\n" +
+      "You can switch to hiring anytime on WhatsApp (send hire) or on the website.\n\n" +
+      "Open your profile:\n\n" +
       (loginLine || "(link coming soon)") +
-      "\n\nWe’ll also notify you directly on WhatsApp when new matches arrive.";
+      "\n\nWe’ll also notify you on WhatsApp when new matches arrive.";
 
     await sendWhatsAppText(phone, msgText);
     return;
@@ -365,16 +462,21 @@ async function handleRecruiterFlow(input: {
   if (step === "RECRUITER_URGENCY") {
     meta.urgency = text.trim();
 
-    const recruiter = await upsertUserByPhone({
+    const user = await upsertIdentityByPhone({
       phone,
-      role: "recruiter",
-      name: null,
       city: String(meta.city ?? "").trim() || null,
-      enableHiring: true,
+      currentMode: "recruiter",
+    });
+
+    await upsertRecruiterProfile({
+      userId: user.id,
+      hiringType: "individual",
+      businessName: null,
+      companyName: null,
     });
 
     await createJob({
-      recruiterId: recruiter.id,
+      recruiterId: user.id,
       title: String(meta.jobTitle ?? "").trim() || "Job",
       city: String(meta.city ?? "").trim() || null,
       salary: typeof meta.salary === "number" ? meta.salary : null,
@@ -389,18 +491,18 @@ async function handleRecruiterFlow(input: {
     let loginLine = "";
     if (webBase) {
       const { token } = await createMagicLinkForUser({
-        userId: recruiter.id,
-        phone: recruiter.phone,
-        role: "recruiter",
+        userId: user.id,
+        phone: user.phone,
       });
       loginLine = `https://${webBase.replace(/^https?:\/\//, "").replace(/\/$/, "")}/login/${token}`;
     }
 
     const msgText =
-      "Thanks! We’re finding matching candidates near you 🚀\n\n" +
-      "Meanwhile, you can manage your job posting and candidates here:\n\n" +
+      "Thanks! Job posted — we’ll find candidates 🚀\n\n" +
+      "You can look for work for yourself anytime (send find jobs) or on the website.\n\n" +
+      "Manage here:\n\n" +
       (loginLine || "(link coming soon)") +
-      "\n\nWe’ll also notify you directly on WhatsApp when new matches arrive.";
+      "\n\nWe’ll notify you on WhatsApp for new matches.";
 
     await sendWhatsAppText(phone, msgText);
     return;
@@ -409,4 +511,3 @@ async function handleRecruiterFlow(input: {
   await clearConversationState(phone);
   await sendWhatsAppText(phone, "Send 'Hi' to start again.");
 }
-

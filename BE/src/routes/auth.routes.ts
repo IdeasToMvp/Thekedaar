@@ -1,31 +1,32 @@
 import { Router } from "express";
 import { z } from "zod";
-import {
-  exchangeMagicLinkToken,
-  signSessionJwt,
-  sessionClaimsFromUserRow,
-} from "../services/magicLink.service";
+import { exchangeMagicLinkToken, signSessionJwt, sessionClaimsForUserId } from "../services/magicLink.service";
 import { requestLoginLinkViaWhatsApp } from "../services/requestLoginLink.service";
-import { getUserWithWorkerProfile, updateUserProfile } from "../services/user.service";
+import { getUserWithProfiles, updateUserProfile, type UserRow } from "../services/user.service";
 import { allowRateLimit } from "../utils/rateLimit";
 import { normalizePhoneForWhatsApp } from "../utils/phone";
 import { requireSession, type RequestWithSession } from "../middleware/requireSession";
 import { subscriptionPayload } from "../utils/subscription";
-import type { UserRow } from "../services/user.service";
 
 const router = Router();
 
-function publicUserJson(user: UserRow) {
+type FullUser = NonNullable<Awaited<ReturnType<typeof getUserWithProfiles>>>;
+
+function mePayload(full: FullUser) {
   return {
-    id: user.id,
-    sub: user.id,
-    phone: user.phone,
-    role: user.role,
-    hiring_enabled: user.hiring_enabled,
-    seeking_enabled: user.seeking_enabled,
-    name: user.name,
-    city: user.city,
-    subscription: subscriptionPayload(user),
+    user: {
+      id: full.user.id,
+      sub: full.user.id,
+      phone: full.user.phone,
+      name: full.user.name,
+      city: full.user.city,
+      current_mode: full.user.current_mode,
+      can_seek: full.worker_profile != null,
+      can_hire: full.recruiter_profile != null,
+      subscription: subscriptionPayload(full.user as UserRow),
+    },
+    worker_profile: full.worker_profile,
+    recruiter_profile: full.recruiter_profile,
   };
 }
 
@@ -42,7 +43,11 @@ router.post("/exchange", async (req, res) => {
   try {
     const claims = await exchangeMagicLinkToken(parsed.data.token);
     const sessionToken = signSessionJwt(claims);
-    return res.status(200).json({ sessionToken, user: claims });
+    const full = await getUserWithProfiles(claims.sub);
+    if (!full) {
+      return res.status(404).json({ error: "User not found" });
+    }
+    return res.status(200).json({ sessionToken, ...mePayload(full) });
   } catch (e: unknown) {
     const msg = e instanceof Error ? e.message : "Exchange failed";
     const status =
@@ -55,27 +60,30 @@ router.post("/exchange", async (req, res) => {
 
 router.get("/me", requireSession, async (req, res) => {
   const session = (req as RequestWithSession).session;
-  const full = await getUserWithWorkerProfile(session.sub);
+  const full = await getUserWithProfiles(session.sub);
   if (!full) {
     return res.status(404).json({ error: "User not found" });
   }
-  return res.status(200).json({
-    user: publicUserJson(full.user),
-    worker_profile: full.worker_profile,
-  });
+  return res.status(200).json(mePayload(full));
 });
 
 const ProfilePatchSchema = z.object({
   name: z.string().max(120).optional().nullable(),
   city: z.string().max(120).optional().nullable(),
-  hiring_enabled: z.boolean().optional(),
-  seeking_enabled: z.boolean().optional(),
+  current_mode: z.enum(["worker", "recruiter"]).optional(),
   worker: z
     .object({
-      job_type: z.string().max(120).optional().nullable(),
+      role: z.string().max(120).optional().nullable(),
       experience_years: z.number().int().min(0).max(80).optional().nullable(),
       expected_salary: z.number().int().min(0).optional().nullable(),
       availability: z.string().max(240).optional().nullable(),
+    })
+    .optional(),
+  recruiter: z
+    .object({
+      business_name: z.string().max(200).optional().nullable(),
+      hiring_type: z.string().max(120).optional().nullable(),
+      company_name: z.string().max(200).optional().nullable(),
     })
     .optional(),
 });
@@ -92,19 +100,18 @@ router.patch("/profile", requireSession, async (req, res) => {
       userId: session.sub,
       name: parsed.data.name,
       city: parsed.data.city,
-      hiring_enabled: parsed.data.hiring_enabled,
-      seeking_enabled: parsed.data.seeking_enabled,
+      current_mode: parsed.data.current_mode,
       worker: parsed.data.worker,
+      recruiter: parsed.data.recruiter,
     });
     if (!updated) {
       return res.status(404).json({ error: "User not found" });
     }
-    const claims = sessionClaimsFromUserRow(updated.user);
+    const claims = await sessionClaimsForUserId(updated.user.id);
     const sessionToken = signSessionJwt(claims);
     return res.status(200).json({
       sessionToken,
-      user: publicUserJson(updated.user),
-      worker_profile: updated.worker_profile,
+      ...mePayload(updated),
     });
   } catch (e: unknown) {
     const msg = e instanceof Error ? e.message : "Update failed";

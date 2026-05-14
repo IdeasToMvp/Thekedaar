@@ -25,7 +25,6 @@ export async function requestLoginLinkViaWhatsApp(rawPhone: string): Promise<voi
   const { token } = await createMagicLinkForUser({
     userId: user.id,
     phone: user.phone,
-    role: user.role as "worker" | "recruiter",
   });
 
   const url = `${webBase}/login/${token}`;

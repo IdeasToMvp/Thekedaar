@@ -2,23 +2,24 @@ import crypto from "crypto";
 import jwt from "jsonwebtoken";
 import type { JwtPayload } from "jsonwebtoken";
 import { supabaseAdmin } from "./supabase.service";
+import { getUserCapabilities, getUserWithProfiles } from "./user.service";
 
 function sha256Hex(input: string): string {
   return crypto.createHash("sha256").update(input).digest("hex");
 }
 
+/** JWT reflects current UI mode + which profiles exist (not a permanent account type). */
 export type SessionClaims = {
   sub: string;
   phone: string;
-  role: "worker" | "recruiter";
-  hiring_enabled: boolean;
-  seeking_enabled: boolean;
+  current_mode: "worker" | "recruiter";
+  can_seek: boolean;
+  can_hire: boolean;
 };
 
 export async function createMagicLinkForUser(input: {
   userId: string;
-  phone: string;
-  role: "worker" | "recruiter";
+  phone?: string;
   ttlMinutes?: number;
 }): Promise<{ token: string; expiresAt: string }> {
   const rawToken = crypto.randomBytes(32).toString("hex");
@@ -37,6 +38,20 @@ export async function createMagicLinkForUser(input: {
   return { token: rawToken, expiresAt };
 }
 
+export async function sessionClaimsForUserId(userId: string): Promise<SessionClaims> {
+  const full = await getUserWithProfiles(userId);
+  if (!full) throw new Error("User not found");
+  const caps = await getUserCapabilities(userId);
+  const mode = full.user.current_mode === "recruiter" ? "recruiter" : "worker";
+  return {
+    sub: full.user.id,
+    phone: full.user.phone,
+    current_mode: mode,
+    can_seek: caps.can_seek,
+    can_hire: caps.can_hire,
+  };
+}
+
 export async function exchangeMagicLinkToken(rawToken: string): Promise<SessionClaims> {
   const sb = supabaseAdmin();
   const tokenHash = sha256Hex(rawToken);
@@ -53,37 +68,13 @@ export async function exchangeMagicLinkToken(rawToken: string): Promise<SessionC
   if (data.used_at) throw new Error("Token already used");
   if (new Date(data.expires_at).getTime() < Date.now()) throw new Error("Token expired");
 
-  const { data: user, error: userErr } = await sb
-    .from("users")
-    .select("id,phone,role,hiring_enabled,seeking_enabled,subscription_plan")
-    .eq("id", data.user_id)
-    .maybeSingle();
-  if (userErr) throw userErr;
-  if (!user) throw new Error("User not found");
-
   const { error: updErr } = await sb
     .from("magic_link_tokens")
     .update({ used_at: new Date().toISOString() })
     .eq("id", data.id);
   if (updErr) throw updErr;
 
-  const role = (user.role === "recruiter" ? "recruiter" : "worker") as "worker" | "recruiter";
-  const hiring =
-    typeof (user as { hiring_enabled?: boolean }).hiring_enabled === "boolean"
-      ? (user as { hiring_enabled: boolean }).hiring_enabled
-      : role === "recruiter";
-  const seeking =
-    typeof (user as { seeking_enabled?: boolean }).seeking_enabled === "boolean"
-      ? (user as { seeking_enabled: boolean }).seeking_enabled
-      : role === "worker";
-
-  return {
-    sub: user.id,
-    phone: user.phone,
-    role,
-    hiring_enabled: hiring,
-    seeking_enabled: seeking,
-  };
+  return sessionClaimsForUserId(data.user_id);
 }
 
 export function signSessionJwt(claims: SessionClaims): string {
@@ -95,9 +86,28 @@ export function signSessionJwt(claims: SessionClaims): string {
 export function verifySessionJwt(token: string): SessionClaims {
   const secret = process.env.SESSION_JWT_SECRET;
   if (!secret) throw new Error("Missing SESSION_JWT_SECRET");
-  const decoded = jwt.verify(token, secret, { algorithms: ["HS256"] }) as JwtPayload & Partial<SessionClaims>;
+  const decoded = jwt.verify(token, secret, { algorithms: ["HS256"] }) as JwtPayload &
+    Partial<SessionClaims> & {
+      hiring_enabled?: boolean;
+      seeking_enabled?: boolean;
+      role?: string;
+    };
 
-  const role = (decoded.role === "recruiter" ? "recruiter" : "worker") as "worker" | "recruiter";
+  if (
+    typeof decoded.can_seek === "boolean" &&
+    typeof decoded.can_hire === "boolean" &&
+    typeof decoded.current_mode === "string"
+  ) {
+    return {
+      sub: String(decoded.sub),
+      phone: String(decoded.phone),
+      current_mode: decoded.current_mode === "recruiter" ? "recruiter" : "worker",
+      can_seek: decoded.can_seek,
+      can_hire: decoded.can_hire,
+    };
+  }
+
+  const role = decoded.role === "recruiter" ? "recruiter" : "worker";
   const hiring =
     typeof decoded.hiring_enabled === "boolean" ? decoded.hiring_enabled : role === "recruiter";
   const seeking =
@@ -106,29 +116,8 @@ export function verifySessionJwt(token: string): SessionClaims {
   return {
     sub: String(decoded.sub),
     phone: String(decoded.phone),
-    role,
-    hiring_enabled: hiring,
-    seeking_enabled: seeking,
-  };
-}
-
-export function sessionClaimsFromUserRow(user: {
-  id: string;
-  phone: string;
-  role: string;
-  hiring_enabled?: boolean;
-  seeking_enabled?: boolean;
-}): SessionClaims {
-  const role = (user.role === "recruiter" ? "recruiter" : "worker") as "worker" | "recruiter";
-  const hiring =
-    typeof user.hiring_enabled === "boolean" ? user.hiring_enabled : role === "recruiter";
-  const seeking =
-    typeof user.seeking_enabled === "boolean" ? user.seeking_enabled : role === "worker";
-  return {
-    sub: user.id,
-    phone: user.phone,
-    role,
-    hiring_enabled: hiring,
-    seeking_enabled: seeking,
+    current_mode: hiring && !seeking ? "recruiter" : "worker",
+    can_seek: seeking,
+    can_hire: hiring,
   };
 }

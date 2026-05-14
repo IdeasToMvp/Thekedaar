@@ -34,6 +34,7 @@ export async function PATCH(req: Request) {
   const res = NextResponse.json({
     user: data.user,
     worker_profile: data.worker_profile,
+    recruiter_profile: data.recruiter_profile,
   });
 
   if (typeof sessionToken === "string" && sessionToken.length > 20) {

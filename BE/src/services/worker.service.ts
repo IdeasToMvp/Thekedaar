@@ -2,7 +2,7 @@ import { supabaseAdmin } from "./supabase.service";
 
 export async function upsertWorkerProfile(input: {
   userId: string;
-  jobType?: string | null;
+  role?: string | null;
   experienceYears?: number | null;
   expectedSalary?: number | null;
   availability?: string | null;
@@ -11,7 +11,7 @@ export async function upsertWorkerProfile(input: {
   const { error } = await sb.from("worker_profiles").upsert(
     {
       user_id: input.userId,
-      job_type: input.jobType ?? null,
+      role: input.role ?? null,
       experience_years: input.experienceYears ?? null,
       expected_salary: input.expectedSalary ?? null,
       availability: input.availability ?? null,
@@ -21,4 +21,3 @@ export async function upsertWorkerProfile(input: {
 
   if (error) throw error;
 }
-

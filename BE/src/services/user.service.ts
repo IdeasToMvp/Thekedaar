@@ -1,67 +1,53 @@
 import { supabaseAdmin } from "./supabase.service";
 
-export type UserRole = "worker" | "recruiter";
+export type AppMode = "worker" | "recruiter";
 
 export type UserRow = {
   id: string;
   phone: string;
-  role: UserRole;
   name: string | null;
   city: string | null;
-  hiring_enabled: boolean;
-  seeking_enabled: boolean;
-  /** Present after migration `003_subscription_plan.sql`; treat missing as `free`. */
+  current_mode: AppMode;
   subscription_plan?: string | null;
 };
 
 export type WorkerProfileRow = {
   user_id: string;
-  job_type: string | null;
+  role: string | null;
   experience_years: number | null;
   expected_salary: number | null;
   availability: string | null;
 };
 
-export async function upsertUserByPhone(input: {
+export type RecruiterProfileRow = {
+  user_id: string;
+  business_name: string | null;
+  hiring_type: string | null;
+  company_name: string | null;
+};
+
+/** Create or update identity by phone (no permanent “account type”). */
+export async function upsertIdentityByPhone(input: {
   phone: string;
-  role: UserRole;
   name?: string | null;
   city?: string | null;
-  enableHiring?: boolean;
-  enableSeeking?: boolean;
+  currentMode?: AppMode;
 }) {
   const sb = supabaseAdmin();
   const existing = await getUserByPhone(input.phone);
-
-  let hiring = existing?.hiring_enabled ?? false;
-  let seeking = existing?.seeking_enabled ?? false;
-  if (input.enableHiring) hiring = true;
-  if (input.enableSeeking) seeking = true;
-
-  if (!existing) {
-    hiring = !!input.enableHiring;
-    seeking = !!input.enableSeeking;
-  }
-
-  if (!hiring && !seeking) {
-    if (input.role === "recruiter") hiring = true;
-    else seeking = true;
-  }
 
   const { data, error } = await sb
     .from("users")
     .upsert(
       {
         phone: input.phone,
-        role: input.role,
         name: input.name ?? existing?.name ?? null,
         city: input.city ?? existing?.city ?? null,
-        hiring_enabled: hiring,
-        seeking_enabled: seeking,
+        current_mode: input.currentMode ?? existing?.current_mode ?? "worker",
       },
       { onConflict: "phone" },
     )
-    .select("id,phone,role,name,city,hiring_enabled,seeking_enabled,subscription_plan")
+    .select("id,phone,name,city,current_mode,subscription_plan")
     .single();
 
   if (error) throw error;
@@ -82,7 +68,32 @@ export async function getUserById(id: string) {
   return data as UserRow | null;
 }
 
-export async function getUserWithWorkerProfile(userId: string) {
+async function hasWorkerProfile(userId: string): Promise<boolean> {
+  const sb = supabaseAdmin();
+  const { count, error } = await sb
+    .from("worker_profiles")
+    .select("user_id", { count: "exact", head: true })
+    .eq("user_id", userId);
+  if (error) throw error;
+  return (count ?? 0) > 0;
+}
+
+async function hasRecruiterProfile(userId: string): Promise<boolean> {
+  const sb = supabaseAdmin();
+  const { count, error } = await sb
+    .from("recruiter_profiles")
+    .select("user_id", { count: "exact", head: true })
+    .eq("user_id", userId);
+  if (error) throw error;
+  return (count ?? 0) > 0;
+}
+
+export async function getUserCapabilities(userId: string): Promise<{ can_seek: boolean; can_hire: boolean }> {
+  const [can_seek, can_hire] = await Promise.all([hasWorkerProfile(userId), hasRecruiterProfile(userId)]);
+  return { can_seek, can_hire };
+}
+
+export async function getUserWithProfiles(userId: string) {
   const sb = supabaseAdmin();
   const { data: user, error: uErr } = await sb.from("users").select("*").eq("id", userId).maybeSingle();
   if (uErr) throw uErr;
@@ -91,20 +102,31 @@ export async function getUserWithWorkerProfile(userId: string) {
   const { data: wp, error: wErr } = await sb.from("worker_profiles").select("*").eq("user_id", userId).maybeSingle();
   if (wErr) throw wErr;
 
-  return { user: user as UserRow, worker_profile: (wp as WorkerProfileRow | null) ?? null };
+  const { data: rp, error: rErr } = await sb.from("recruiter_profiles").select("*").eq("user_id", userId).maybeSingle();
+  if (rErr) throw rErr;
+
+  return {
+    user: user as UserRow,
+    worker_profile: (wp as WorkerProfileRow | null) ?? null,
+    recruiter_profile: (rp as RecruiterProfileRow | null) ?? null,
+  };
 }
 
 export async function updateUserProfile(input: {
   userId: string;
   name?: string | null;
   city?: string | null;
-  hiring_enabled?: boolean;
-  seeking_enabled?: boolean;
+  current_mode?: AppMode;
   worker?: {
-    job_type?: string | null;
+    role?: string | null;
     experience_years?: number | null;
     expected_salary?: number | null;
     availability?: string | null;
+  };
+  recruiter?: {
+    business_name?: string | null;
+    hiring_type?: string | null;
+    company_name?: string | null;
   };
 }) {
   const sb = supabaseAdmin();
@@ -112,54 +134,59 @@ export async function updateUserProfile(input: {
   const existing = await getUserById(input.userId);
   if (!existing) throw new Error("User not found");
 
-  const hiring = input.hiring_enabled ?? existing.hiring_enabled;
-  const seeking = input.seeking_enabled ?? existing.seeking_enabled;
-  if (!hiring && !seeking) {
-    throw new Error("Choose at least one: hiring or looking for work");
-  }
-
-  const role: UserRole = hiring && !seeking ? "recruiter" : seeking && !hiring ? "worker" : existing.role;
-
-  const { data: wpRow, error: wpReadErr } = await sb
-    .from("worker_profiles")
-    .select("*")
-    .eq("user_id", input.userId)
-    .maybeSingle();
-  if (wpReadErr) throw wpReadErr;
-  const prevWp = (wpRow as WorkerProfileRow | null) ?? null;
-
   const { error: uErr } = await sb
     .from("users")
     .update({
       name: input.name !== undefined ? input.name : existing.name,
       city: input.city !== undefined ? input.city : existing.city,
-      hiring_enabled: hiring,
-      seeking_enabled: seeking,
-      role,
+      current_mode: input.current_mode ?? existing.current_mode,
     })
-    .eq("id", input.userId)
-    .select("*")
-    .single();
+    .eq("id", input.userId);
   if (uErr) throw uErr;
 
-  if (input.worker !== undefined && seeking) {
+  if (input.worker !== undefined) {
+    const { data: wpRow, error: wpReadErr } = await sb
+      .from("worker_profiles")
+      .select("*")
+      .eq("user_id", input.userId)
+      .maybeSingle();
+    if (wpReadErr) throw wpReadErr;
+    const prev = (wpRow as WorkerProfileRow | null) ?? null;
+    const w = input.worker;
     const { error: wErr } = await sb.from("worker_profiles").upsert(
       {
         user_id: input.userId,
-        job_type: input.worker.job_type !== undefined ? input.worker.job_type : prevWp?.job_type ?? null,
+        role: w.role !== undefined ? w.role : prev?.role ?? null,
         experience_years:
-          input.worker.experience_years !== undefined
-            ? input.worker.experience_years
-            : prevWp?.experience_years ?? null,
-        expected_salary:
-          input.worker.expected_salary !== undefined ? input.worker.expected_salary : prevWp?.expected_salary ?? null,
-        availability:
-          input.worker.availability !== undefined ? input.worker.availability : prevWp?.availability ?? null,
+          w.experience_years !== undefined ? w.experience_years : prev?.experience_years ?? null,
+        expected_salary: w.expected_salary !== undefined ? w.expected_salary : prev?.expected_salary ?? null,
+        availability: w.availability !== undefined ? w.availability : prev?.availability ?? null,
       },
       { onConflict: "user_id" },
     );
     if (wErr) throw wErr;
   }
 
-  return getUserWithWorkerProfile(input.userId);
+  if (input.recruiter !== undefined) {
+    const { data: rpRow, error: rpReadErr } = await sb
+      .from("recruiter_profiles")
+      .select("*")
+      .eq("user_id", input.userId)
+      .maybeSingle();
+    if (rpReadErr) throw rpReadErr;
+    const prev = (rpRow as RecruiterProfileRow | null) ?? null;
+    const r = input.recruiter;
+    const { error: rErr } = await sb.from("recruiter_profiles").upsert(
+      {
+        user_id: input.userId,
+        business_name: r.business_name !== undefined ? r.business_name : prev?.business_name ?? null,
+        hiring_type: r.hiring_type !== undefined ? r.hiring_type : prev?.hiring_type ?? null,
+        company_name: r.company_name !== undefined ? r.company_name : prev?.company_name ?? null,
+      },
+      { onConflict: "user_id" },
+    );
+    if (rErr) throw rErr;
+  }
+
+  return getUserWithProfiles(input.userId);
 }
