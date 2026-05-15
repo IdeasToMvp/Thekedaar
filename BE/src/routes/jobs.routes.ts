@@ -151,6 +151,7 @@ router.post("/:jobId/apply", requireSession, async (req, res) => {
     const msg = e instanceof Error ? e.message : "Apply failed";
     const status =
       msg.includes("worker profile") ? 403 :
+      msg.includes("cannot apply again") ? 409 :
       msg.includes("own listing") ? 400 :
       msg.includes("not found") ? 404 : 400;
     return res.status(status).json({ error: msg });

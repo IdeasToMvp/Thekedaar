@@ -62,6 +62,10 @@ export function JobListingViewModal({
   const handlePrimary = isApply ? apply.handleApply : hire.handlePrimary;
   const showCheck = isApply ? apply.status === "pending" || apply.status === "approved" : hire.contacted;
   const disabled = isApply ? apply.disabled : hire.loading !== null;
+  const applyBtnClass =
+    apply.status === "rejected"
+      ? "min-h-11 w-full rounded-full border border-red-200 bg-red-50 text-sm font-semibold text-red-800 disabled:opacity-70"
+      : "min-h-11 w-full rounded-full bg-brand-dark text-sm font-semibold text-white disabled:opacity-50";
   const hasAction = Boolean(action);
 
   useEffect(() => {
@@ -155,7 +159,7 @@ export function JobListingViewModal({
               type="button"
               onClick={handlePrimary}
               disabled={disabled}
-              className="min-h-11 w-full rounded-full bg-brand-dark text-sm font-semibold text-white disabled:opacity-50"
+              className={isApply ? applyBtnClass : "min-h-11 w-full rounded-full bg-brand-dark text-sm font-semibold text-white disabled:opacity-50"}
             >
               {loading ? "…" : primaryLabel}
               {showCheck ? " ✓" : ""}

@@ -139,7 +139,7 @@ export function AppliedJobsPageContent() {
       {user && viewApp ? (
         <JobListingViewModal
           open={Boolean(viewJobId)}
-          job={viewApp.job}
+          job={{ ...viewApp.job, applicationStatus: viewApp.status }}
           user={user}
           onClose={() => setViewJobId(null)}
           onApplicationUpdated={handleApplicationUpdated}

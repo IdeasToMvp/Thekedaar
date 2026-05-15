@@ -29,6 +29,10 @@ export function JobCardActions({ job, user, onApplicationUpdated, onContactRecor
   const handlePrimary = isApply ? apply.handleApply : hire.handlePrimary;
   const showCheck = isApply ? apply.status === "pending" || apply.status === "approved" : hire.contacted;
   const disabled = isApply ? apply.disabled : hire.loading !== null;
+  const applyBtnClass =
+    apply.status === "rejected"
+      ? "min-h-9 flex-1 rounded-full border border-red-200 bg-red-50 text-sm font-semibold text-red-800 disabled:opacity-70"
+      : "min-h-9 flex-1 rounded-full bg-brand-dark text-sm font-semibold text-white transition hover:opacity-95 disabled:opacity-50";
 
   if (!action) {
     return (
@@ -59,7 +63,7 @@ export function JobCardActions({ job, user, onApplicationUpdated, onContactRecor
             type="button"
             onClick={handlePrimary}
             disabled={disabled}
-            className="min-h-9 flex-1 rounded-full bg-brand-dark text-sm font-semibold text-white transition hover:opacity-95 disabled:opacity-50"
+            className={isApply ? applyBtnClass : "min-h-9 flex-1 rounded-full bg-brand-dark text-sm font-semibold text-white transition hover:opacity-95 disabled:opacity-50"}
           >
             {loading ? "…" : primaryLabel}
             {showCheck ? " ✓" : ""}

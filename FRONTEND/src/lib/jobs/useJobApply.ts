@@ -25,8 +25,15 @@ export function useJobApply(
     setLoading(true);
     try {
       const resp = await fetch(`/api/jobs/${job.id}/apply`, { method: "POST" });
-      const data = (await resp.json()) as { error?: string; application?: { status: ApplicationStatus } };
+      const data = (await resp.json()) as {
+        error?: string;
+        application?: { status: ApplicationStatus };
+      };
       if (!resp.ok) {
+        if (data.application?.status) {
+          setStatus(data.application.status);
+          onApplied(job.id, data.application.status);
+        }
         throw new Error(typeof data?.error === "string" ? data.error : "Could not apply");
       }
       const next = data.application?.status ?? "pending";
@@ -55,7 +62,7 @@ export function useJobApply(
       : status === "approved"
         ? "Approved — see contact on the Applied tab."
         : status === "rejected"
-          ? "This application was not selected."
+          ? "This employer did not select you. You cannot apply again to this listing."
           : null;
 
   return {

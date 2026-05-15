@@ -354,6 +354,11 @@ export async function submitJobApplication(input: {
     status = ex.status as ApplicationStatus;
     appliedAt = ex.created_at;
     updatedAt = ex.updated_at;
+    if (status === "rejected") {
+      throw new Error(
+        "You cannot apply again. This employer did not select your application.",
+      );
+    }
   } else {
     const { data: inserted, error: insErr } = await sb
       .from("job_applications")
@@ -408,7 +413,7 @@ export async function submitJobApplication(input: {
     status,
     appliedAt,
     updatedAt,
-    job: withoutEmployerContact(jobApi),
+    job: { ...withoutEmployerContact(jobApi), applicationStatus: status },
   };
 
   return { application, created };
@@ -473,7 +478,7 @@ export async function listWorkerApplications(workerId: string): Promise<JobAppli
       status,
       appliedAt: r.created_at,
       updatedAt: r.updated_at,
-      job: withoutEmployerContact(jobApi),
+      job: { ...withoutEmployerContact(jobApi), applicationStatus: status },
     };
     if (status === "approved" && rec) {
       const workAddress = workAddressByJobId.get(r.job_id) ?? null;
