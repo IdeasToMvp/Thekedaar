@@ -25,6 +25,9 @@ export function FeedNavLinks({ user, className = "", onNavigate }: Props) {
       <Link href="/feed" onClick={onNavigate} className={linkClass(pathname === "/feed")}>
         Find Jobs
       </Link>
+      <Link href="/feed/profile" onClick={onNavigate} className={linkClass(pathname === "/feed/profile")}>
+        Profile
+      </Link>
       {worker ? (
         <span className="cursor-default text-muted" title="Coming soon">
           My Applications

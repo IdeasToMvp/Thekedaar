@@ -7,15 +7,16 @@ import { isRecruiterView } from "@/lib/jobs/viewerRole";
 import { useFeedUser } from "./FeedUserProvider";
 import { AppNavbar } from "./AppNavbar";
 import { MyListingsSection } from "./MyListingsSection";
+import { JobListingModal } from "./JobListingModal";
 import { PostJobFab } from "./PostJobFab";
-import { PostJobModal } from "./PostJobModal";
 
 export function MyListingsPageContent() {
   const { user, userLoading, cityId, setCityId } = useFeedUser();
   const [listings, setListings] = useState<FeedJob[]>([]);
   const [listingsLoading, setListingsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [postJobOpen, setPostJobOpen] = useState(false);
+  const [listingModalOpen, setListingModalOpen] = useState(false);
+  const [editingJob, setEditingJob] = useState<FeedJob | null>(null);
 
   const loadListings = useCallback(async () => {
     setListingsLoading(true);
@@ -67,7 +68,14 @@ export function MyListingsPageContent() {
               {error ? (
                 <p className="mb-4 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">{error}</p>
               ) : null}
-              <MyListingsSection listings={listings} loading={listingsLoading || userLoading} />
+              <MyListingsSection
+                listings={listings}
+                loading={listingsLoading || userLoading}
+                onEditJob={(job) => {
+                  setEditingJob(job);
+                  setListingModalOpen(true);
+                }}
+              />
             </>
           )}
         </div>
@@ -75,11 +83,20 @@ export function MyListingsPageContent() {
 
       {user && isRecruiterView(user) ? (
         <>
-          <PostJobFab onClick={() => setPostJobOpen(true)} />
-          <PostJobModal
-            open={postJobOpen}
+          <PostJobFab
+            onClick={() => {
+              setEditingJob(null);
+              setListingModalOpen(true);
+            }}
+          />
+          <JobListingModal
+            open={listingModalOpen}
             cityId={cityId}
-            onClose={() => setPostJobOpen(false)}
+            job={editingJob}
+            onClose={() => {
+              setListingModalOpen(false);
+              setEditingJob(null);
+            }}
             onSuccess={() => loadListings()}
           />
         </>

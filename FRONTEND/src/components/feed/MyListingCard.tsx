@@ -1,3 +1,5 @@
+"use client";
+
 import type { FeedJob } from "@/lib/jobs/types";
 import { formatRelativeTime, formatSalary } from "@/lib/formatRelativeTime";
 import { categoryIcon } from "@/lib/jobs/feedFilters";
@@ -10,9 +12,10 @@ const urgencyStyles: Record<FeedJob["urgency"], string> = {
 
 type Props = {
   job: FeedJob;
+  onEdit?: (job: FeedJob) => void;
 };
 
-export function MyListingCard({ job }: Props) {
+export function MyListingCard({ job, onEdit }: Props) {
   return (
     <article className="flex h-full w-full flex-col rounded-2xl border border-border bg-surface p-4 shadow-sm sm:p-5">
       <div className="flex shrink-0 items-start justify-between gap-2">
@@ -21,7 +24,9 @@ export function MyListingCard({ job }: Props) {
         </span>
         <div className="text-right">
           <p className="text-lg font-bold text-brand">{formatSalary(job.salaryPerMonth)}</p>
-          <span className={`mt-1 inline-block rounded-full px-2 py-0.5 text-[10px] font-semibold capitalize ${urgencyStyles[job.urgency]}`}>
+          <span
+            className={`mt-1 inline-block rounded-full px-2 py-0.5 text-[10px] font-semibold capitalize ${urgencyStyles[job.urgency]}`}
+          >
             {job.urgency}
           </span>
         </div>
@@ -35,6 +40,16 @@ export function MyListingCard({ job }: Props) {
       </p>
       <p className="mt-2 line-clamp-2 flex-1 text-sm text-muted">{job.description}</p>
       <p className="mt-3 text-xs text-muted">Posted {formatRelativeTime(job.postedAt)} · Live on feed</p>
+
+      {onEdit ? (
+        <button
+          type="button"
+          onClick={() => onEdit(job)}
+          className="mt-3 min-h-10 w-full rounded-lg border border-brand bg-brand/5 text-sm font-semibold text-brand-dark transition hover:bg-brand/10"
+        >
+          Edit listing
+        </button>
+      ) : null}
     </article>
   );
 }

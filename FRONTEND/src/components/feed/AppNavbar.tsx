@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import type { MeUser } from "@/lib/auth/types";
@@ -51,12 +52,13 @@ export function AppNavbar({ user, cityId, onCityChange }: Props) {
 
           <div className="ml-auto flex items-center gap-2 sm:gap-3">
             <span className="hidden text-xs font-medium text-muted md:inline">{viewerModeLabel(user)}</span>
-            <span
-              className="hidden h-9 w-9 items-center justify-center rounded-full bg-brand/15 text-sm font-bold text-brand sm:flex"
-              title={user.name || user.phone}
+            <Link
+              href="/feed/profile"
+              className="hidden h-9 w-9 items-center justify-center rounded-full bg-brand/15 text-sm font-bold text-brand transition hover:bg-brand/25 sm:flex"
+              title="Your profile"
             >
               {(user.name || user.phone).slice(0, 1).toUpperCase()}
-            </span>
+            </Link>
             <button
               type="button"
               onClick={() => setDrawerOpen(true)}

@@ -12,11 +12,19 @@ export type WorkerUserJoin = {
 export type WorkerFeedRowRaw = {
   user_id: string;
   role: string | null;
+  skills?: string[] | null;
   experience_years: number | null;
   expected_salary: number | null;
   availability: string | null;
   users: WorkerUserJoin | WorkerUserJoin[];
 };
+
+function resolveWorkerSkills(row: WorkerFeedRowRaw): string[] {
+  const fromSkills = (row.skills ?? []).map((s) => s.trim()).filter(Boolean);
+  if (fromSkills.length > 0) return [...new Set(fromSkills)];
+  const role = row.role?.trim();
+  return role ? [role] : [];
+}
 
 function resolveWorkerUser(users: WorkerUserJoin | WorkerUserJoin[]): WorkerUserJoin {
   const u = Array.isArray(users) ? users[0] : users;
@@ -29,6 +37,7 @@ export type WorkerFeedApiWorker = {
   displayName: string;
   avatarKey: string;
   role: string;
+  skills: string[];
   city: string;
   expectedSalary: number;
   experienceYears: number | null;
@@ -50,11 +59,13 @@ function waDigitsFromPhone(phone: string): string {
 export function mapWorkerToFeedApi(row: WorkerFeedRowRaw, viewerId?: string): WorkerFeedApiWorker {
   const u = resolveWorkerUser(row.users);
   const phone = u.phone ?? "";
+  const skills = resolveWorkerSkills(row);
   return {
     id: u.id,
     displayName: u.name?.trim() || `Worker ${phone.slice(-4)}`,
     avatarKey: avatarKey(u.name, phone),
-    role: row.role?.trim() || "General",
+    role: skills[0] ?? "General",
+    skills,
     city: u.city?.trim() || "",
     expectedSalary: row.expected_salary ?? 0,
     experienceYears: row.experience_years,
@@ -85,7 +96,7 @@ export async function listWorkersForFeed(input: {
 }): Promise<{ workers: WorkerFeedApiWorker[] }> {
   const sb = supabaseAdmin();
   let q = sb.from("worker_profiles").select(
-    "user_id, role, experience_years, expected_salary, availability, users!inner(id, name, city, phone, created_at)",
+    "user_id, role, skills, experience_years, expected_salary, availability, users!inner(id, name, city, phone, created_at)",
   );
 
   if (input.city) q = q.ilike("users.city", input.city);

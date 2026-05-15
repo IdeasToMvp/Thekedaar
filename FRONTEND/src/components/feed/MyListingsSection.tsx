@@ -8,9 +8,10 @@ type Props = {
   listings: FeedJob[];
   loading?: boolean;
   compact?: boolean;
+  onEditJob?: (job: FeedJob) => void;
 };
 
-export function MyListingsSection({ listings, loading, compact = false }: Props) {
+export function MyListingsSection({ listings, loading, compact = false, onEditJob }: Props) {
   const preview = compact ? listings.slice(0, 3) : listings;
 
   return (
@@ -48,7 +49,7 @@ export function MyListingsSection({ listings, loading, compact = false }: Props)
         <ul className="mt-4 grid list-none grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
           {preview.map((job) => (
             <li key={job.id} className="flex min-h-[12rem]">
-              <MyListingCard job={job} />
+              <MyListingCard job={job} onEdit={onEditJob} />
             </li>
           ))}
         </ul>

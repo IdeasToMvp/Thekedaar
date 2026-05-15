@@ -105,6 +105,7 @@ const ProfilePatchSchema = z.object({
   worker: z
     .object({
       role: z.string().max(120).optional().nullable(),
+      skills: z.array(z.string().min(1).max(80)).max(8).optional().nullable(),
       experience_years: z.number().int().min(0).max(80).optional().nullable(),
       expected_salary: z.number().int().min(0).optional().nullable(),
       availability: z.string().max(240).optional().nullable(),

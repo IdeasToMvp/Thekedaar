@@ -5,7 +5,13 @@ import { optionalSession } from "../middleware/optionalSession";
 import { requireSession, type RequestWithSession } from "../middleware/requireSession";
 import { upsertRecruiterProfile } from "../services/recruiter.service";
 import { updateUserProfile } from "../services/user.service";
-import { buildFeedLimits, createJob, getJobById, recordFeedJobContact } from "../services/jobs.service";
+import {
+  buildFeedLimits,
+  createJob,
+  getJobById,
+  recordFeedJobContact,
+  updateJobForRecruiter,
+} from "../services/jobs.service";
 
 const router = Router();
 
@@ -56,6 +62,44 @@ router.post("/", requireSession, async (req, res) => {
   } catch (e: unknown) {
     const msg = e instanceof Error ? e.message : "Could not create job";
     const status = msg.includes("allows up to") || msg.includes("Upgrade") ? 403 : 400;
+    return res.status(status).json({ error: msg });
+  }
+});
+
+const UpdateJobBodySchema = CreateJobBodySchema.partial().refine(
+  (data) => Object.keys(data).length > 0,
+  { message: "At least one field is required" },
+);
+
+router.patch("/:jobId", requireSession, async (req, res) => {
+  const session = (req as RequestWithSession).session;
+  const jobId = typeof req.params.jobId === "string" ? req.params.jobId : req.params.jobId?.[0];
+  if (!jobId || !z.string().uuid().safeParse(jobId).success) {
+    return res.status(400).json({ error: "Invalid job id" });
+  }
+  const parsed = UpdateJobBodySchema.safeParse(req.body);
+  if (!parsed.success) {
+    return res.status(400).json({ error: "Invalid request" });
+  }
+
+  try {
+    const body = parsed.data;
+    await updateJobForRecruiter({
+      jobId,
+      recruiterId: session.sub,
+      title: body.title,
+      city: body.city,
+      salary: body.salary,
+      timing: body.timing,
+      accommodation: body.accommodation,
+      urgency: body.urgency,
+      category: body.category,
+      description: body.description,
+    });
+    return res.status(200).json({ ok: true, jobId });
+  } catch (e: unknown) {
+    const msg = e instanceof Error ? e.message : "Could not update job";
+    const status = msg.includes("only edit your own") ? 403 : msg.includes("not found") ? 404 : 400;
     return res.status(status).json({ error: msg });
   }
 });

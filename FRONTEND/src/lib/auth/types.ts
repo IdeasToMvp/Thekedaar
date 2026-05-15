@@ -11,6 +11,15 @@ export type MeUser = {
   can_hire: boolean;
 };
 
+export type WorkerProfile = {
+  user_id: string;
+  role: string | null;
+  skills?: string[] | null;
+  experience_years: number | null;
+  expected_salary: number | null;
+  availability: string | null;
+};
+
 export type RecruiterProfile = {
   user_id: string;
   business_name: string | null;
@@ -21,5 +30,24 @@ export type RecruiterProfile = {
 export type MeResponse = {
   user: MeUser;
   recruiter_profile?: RecruiterProfile | null;
-  worker_profile?: unknown | null;
+  worker_profile?: WorkerProfile | null;
+  sessionToken?: string;
+};
+
+export type ProfilePatchBody = {
+  name?: string | null;
+  city?: string | null;
+  current_mode?: AppMode;
+  worker?: {
+    role?: string | null;
+    skills?: string[] | null;
+    experience_years?: number | null;
+    expected_salary?: number | null;
+    availability?: string | null;
+  };
+  recruiter?: {
+    business_name?: string | null;
+    hiring_type?: string | null;
+    company_name?: string | null;
+  };
 };

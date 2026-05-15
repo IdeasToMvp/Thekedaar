@@ -5,13 +5,21 @@ import {
   type SalaryBandId,
 } from "@/lib/launch";
 
-function roleMatchesWorker(workerRole: string, roleId: string): boolean {
+function workerSkillLabels(worker: FeedWorker): string[] {
+  if (worker.skills?.length) return worker.skills;
+  return worker.role ? [worker.role] : [];
+}
+
+function roleMatchesWorker(worker: FeedWorker, roleId: string): boolean {
+  const labels = workerSkillLabels(worker);
   if (!roleId) {
-    return ACTIVE_MARKET.roles.some((r) => categoryMatchesRole(workerRole, r.apiCategory, r.aliases));
+    return labels.some((label) =>
+      ACTIVE_MARKET.roles.some((r) => categoryMatchesRole(label, r.apiCategory, r.aliases)),
+    );
   }
   const role = getLaunchRole(roleId);
   if (!role) return true;
-  return categoryMatchesRole(workerRole, role.apiCategory, role.aliases);
+  return labels.some((label) => categoryMatchesRole(label, role.apiCategory, role.aliases));
 }
 
 function categoryMatchesRole(
@@ -41,7 +49,7 @@ export function filterWorkersToLaunchMarket(
   return workers.filter(
     (w) =>
       (w.isOwnProfile || workerMatchesLaunchCity(w, cityId)) &&
-      (w.isOwnProfile || roleMatchesWorker(w.role, roleId)),
+      (w.isOwnProfile || roleMatchesWorker(w, roleId)),
   );
 }
 

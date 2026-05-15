@@ -11,6 +11,9 @@ export type FeedJob = {
   employerAvatarKey: string;
   description: string;
   urgency: JobUrgency;
+  urgencyRaw?: string | null;
+  timing?: string | null;
+  accommodation?: boolean | null;
   posterSubscription: { plan: string; features: Record<string, boolean> };
   contactWaDigits?: string;
   /** Set when the signed-in user posted this job */

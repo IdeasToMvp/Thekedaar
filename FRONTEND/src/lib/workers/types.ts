@@ -3,6 +3,7 @@ export type FeedWorker = {
   displayName: string;
   avatarKey: string;
   role: string;
+  skills: string[];
   city: string;
   expectedSalary: number;
   experienceYears: number | null;

@@ -33,6 +33,9 @@ export type JobFeedApiJob = {
   employerAvatarKey: string;
   description: string;
   urgency: "low" | "medium" | "high";
+  urgencyRaw: string | null;
+  timing: string | null;
+  accommodation: boolean | null;
   posterSubscription: { plan: BillingPlan; features: Record<string, boolean> };
   contactWaDigits: string;
   isOwnListing?: boolean;
@@ -71,6 +74,9 @@ export function mapJobToFeedApi(
     employerAvatarKey: avatarKey(recruiter.name, recruiter.phone),
     description: job.description || `${job.title} in ${job.city || "your city"}.`,
     urgency: normalizeUrgency(job.urgency),
+    urgencyRaw: job.urgency,
+    timing: job.timing,
+    accommodation: job.accommodation,
     posterSubscription: { plan, features: plan === "pro" ? { boosted_listing: true } : {} },
     contactWaDigits: waDigitsFromPhone(recruiter.phone),
     ...(viewerId && job.recruiter_id === viewerId ? { isOwnListing: true } : {}),
@@ -154,6 +160,40 @@ export async function createJob(input: {
 
   if (error) throw error;
   return data as { id: string };
+}
+
+export async function updateJobForRecruiter(input: {
+  jobId: string;
+  recruiterId: string;
+  title?: string;
+  city?: string | null;
+  salary?: number | null;
+  timing?: string | null;
+  accommodation?: boolean | null;
+  urgency?: string | null;
+  category?: string | null;
+  description?: string | null;
+}) {
+  const existing = await getJobById(input.jobId);
+  if (!existing) throw new Error("Job not found");
+  if (existing.recruiter_id !== input.recruiterId) {
+    throw new Error("You can only edit your own listings");
+  }
+
+  const sb = supabaseAdmin();
+  const patch: Record<string, unknown> = {};
+  if (input.title !== undefined) patch.title = input.title.trim();
+  if (input.city !== undefined) patch.city = input.city?.trim() || null;
+  if (input.salary !== undefined) patch.salary = input.salary;
+  if (input.timing !== undefined) patch.timing = input.timing?.trim() || null;
+  if (input.accommodation !== undefined) patch.accommodation = input.accommodation;
+  if (input.urgency !== undefined) patch.urgency = input.urgency?.trim() || null;
+  if (input.category !== undefined) patch.category = input.category?.trim() || null;
+  if (input.description !== undefined) patch.description = input.description?.trim() || null;
+
+  const { error } = await sb.from("jobs").update(patch).eq("id", input.jobId);
+  if (error) throw error;
+  return { id: input.jobId };
 }
 
 export async function findJobsForWorker(input: { city?: string | null; jobType?: string | null }) {

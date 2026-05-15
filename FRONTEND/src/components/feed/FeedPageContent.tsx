@@ -26,7 +26,7 @@ import { FeedJobCard } from "./FeedJobCard";
 import { WorkerFeedCard } from "./WorkerFeedCard";
 import { NearbyHighlights } from "./NearbyHighlights";
 import { PostJobFab } from "./PostJobFab";
-import { PostJobModal } from "./PostJobModal";
+import { JobListingModal } from "./JobListingModal";
 import { FeedListingTabs, type FeedListingTab } from "./FeedListingTabs";
 
 const PAGE_SIZE = 24;
@@ -379,7 +379,7 @@ export function FeedPageContent() {
       {user && isRecruiterView(user) && listingTab === "jobs" ? (
         <>
           <PostJobFab onClick={() => setPostJobOpen(true)} />
-          <PostJobModal
+          <JobListingModal
             open={postJobOpen}
             cityId={cityId}
             onClose={() => setPostJobOpen(false)}

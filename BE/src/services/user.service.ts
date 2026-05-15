@@ -14,10 +14,18 @@ export type UserRow = {
 export type WorkerProfileRow = {
   user_id: string;
   role: string | null;
+  skills?: string[] | null;
   experience_years: number | null;
   expected_salary: number | null;
   availability: string | null;
 };
+
+function normalizeSkills(skills: string[] | null | undefined, fallbackRole?: string | null): string[] {
+  const fromSkills = (skills ?? []).map((s) => s.trim()).filter(Boolean);
+  if (fromSkills.length > 0) return [...new Set(fromSkills)];
+  const role = fallbackRole?.trim();
+  return role ? [role] : [];
+}
 
 export type RecruiterProfileRow = {
   user_id: string;
@@ -119,6 +127,7 @@ export async function updateUserProfile(input: {
   current_mode?: AppMode;
   worker?: {
     role?: string | null;
+    skills?: string[] | null;
     experience_years?: number | null;
     expected_salary?: number | null;
     availability?: string | null;
@@ -153,10 +162,15 @@ export async function updateUserProfile(input: {
     if (wpReadErr) throw wpReadErr;
     const prev = (wpRow as WorkerProfileRow | null) ?? null;
     const w = input.worker;
+    const skills = normalizeSkills(
+      w.skills !== undefined ? w.skills : prev?.skills,
+      w.role !== undefined ? w.role : prev?.role,
+    );
     const { error: wErr } = await sb.from("worker_profiles").upsert(
       {
         user_id: input.userId,
-        role: w.role !== undefined ? w.role : prev?.role ?? null,
+        role: skills[0] ?? null,
+        skills,
         experience_years:
           w.experience_years !== undefined ? w.experience_years : prev?.experience_years ?? null,
         expected_salary: w.expected_salary !== undefined ? w.expected_salary : prev?.expected_salary ?? null,
