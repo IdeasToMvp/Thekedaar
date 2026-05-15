@@ -11,6 +11,15 @@ export type MeUser = {
   can_hire: boolean;
 };
 
+export type RecruiterProfile = {
+  user_id: string;
+  business_name: string | null;
+  hiring_type: string | null;
+  company_name: string | null;
+};
+
 export type MeResponse = {
   user: MeUser;
+  recruiter_profile?: RecruiterProfile | null;
+  worker_profile?: unknown | null;
 };

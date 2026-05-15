@@ -4,8 +4,9 @@ import { useRouter } from "next/navigation";
 import { useState } from "react";
 import type { MeUser } from "@/lib/auth/types";
 import { ThekedaarLogo } from "@/components/brand/ThekedaarLogo";
-import { isWorkerView, viewerModeLabel } from "@/lib/jobs/viewerRole";
+import { viewerModeLabel } from "@/lib/jobs/viewerRole";
 import { AppNavDrawer } from "./AppNavDrawer";
+import { FeedNavLinks } from "./FeedNavLinks";
 import { MarketCitySelect } from "./MarketCitySelect";
 
 type Props = {
@@ -17,8 +18,6 @@ type Props = {
 export function AppNavbar({ user, cityId, onCityChange }: Props) {
   const router = useRouter();
   const [drawerOpen, setDrawerOpen] = useState(false);
-  const worker = isWorkerView(user);
-
   async function signOut() {
     await fetch("/api/auth/logout", { method: "POST" });
     router.push("/");
@@ -38,28 +37,17 @@ export function AppNavbar({ user, cityId, onCityChange }: Props) {
             className="min-w-0 max-w-[9.5rem] shrink [&_span]:sr-only"
           />
 
-          <nav className="hidden flex-1 items-center justify-center gap-8 text-sm font-medium lg:flex">
-            <span className="border-b-2 border-brand pb-0.5 text-foreground">Find Jobs</span>
-            {worker ? (
-              <span className="cursor-default text-muted" title="Coming soon">
-                My Applications
-              </span>
-            ) : (
-              <span className="cursor-default text-muted" title="Coming soon">
-                My Listings
-              </span>
-            )}
-            <span className="cursor-default text-muted" title="Coming soon">
-              Messages
-            </span>
-            <button
-              type="button"
-              onClick={signOut}
-              className="text-muted transition hover:text-foreground"
-            >
-              Sign out
-            </button>
-          </nav>
+          <FeedNavLinks
+            user={user}
+            className="hidden flex-1 items-center justify-center gap-8 text-sm font-medium lg:flex"
+          />
+          <button
+            type="button"
+            onClick={signOut}
+            className="hidden text-sm font-medium text-muted transition hover:text-foreground lg:block"
+          >
+            Sign out
+          </button>
 
           <div className="ml-auto flex items-center gap-2 sm:gap-3">
             <span className="hidden text-xs font-medium text-muted md:inline">{viewerModeLabel(user)}</span>

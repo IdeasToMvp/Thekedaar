@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import type { MeUser } from "@/lib/auth/types";
+import type { MeResponse, MeUser } from "@/lib/auth/types";
 import type { FeedJob, FeedLimits, FeedResponse } from "@/lib/jobs/types";
 import {
   ACTIVE_MARKET,
@@ -13,8 +13,10 @@ import {
   roleToApiParam,
   type SalaryBandId,
 } from "@/lib/launch";
+import type { ActivityResponse } from "@/lib/jobs/activity";
 import { isRecruiterView } from "@/lib/jobs/viewerRole";
 import { AppNavbar } from "./AppNavbar";
+import { MyListingsSection } from "./MyListingsSection";
 import { FeedSidebar } from "./FeedSidebar";
 import { FeedMobileFilters } from "./FeedMobileFilters";
 import { FeaturedJobCard } from "./FeaturedJobCard";
@@ -40,6 +42,8 @@ export function FeedPageContent() {
   const [cityId, setCityId] = useState(ACTIVE_MARKET.defaultCityId);
   const [salaryBand, setSalaryBand] = useState<SalaryBandId>("all");
   const [sort] = useState<SortOption>("newest");
+  const [myListings, setMyListings] = useState<FeedJob[]>([]);
+  const [myListingsLoading, setMyListingsLoading] = useState(false);
 
   const whatsAppUrl =
     process.env.NEXT_PUBLIC_WHATSAPP_URL?.trim() ||
@@ -48,15 +52,41 @@ export function FeedPageContent() {
   useEffect(() => {
     let cancelled = false;
     fetch("/api/auth/me")
-      .then((r) => r.json())
+      .then((r) => r.json() as Promise<MeResponse>)
       .then((data) => {
-        if (!cancelled && data?.user) setUser(data.user as MeUser);
+        if (cancelled || !data?.user) return;
+        const u = { ...data.user };
+        if (data.recruiter_profile) u.can_hire = true;
+        setUser(u);
       })
       .catch(() => {});
     return () => {
       cancelled = true;
     };
   }, []);
+
+  useEffect(() => {
+    if (!user?.can_hire) {
+      setMyListings([]);
+      return;
+    }
+    let cancelled = false;
+    setMyListingsLoading(true);
+    fetch("/api/auth/activity")
+      .then((r) => r.json())
+      .then((data: ActivityResponse) => {
+        if (!cancelled) setMyListings(data.myListings ?? []);
+      })
+      .catch(() => {
+        if (!cancelled) setMyListings([]);
+      })
+      .finally(() => {
+        if (!cancelled) setMyListingsLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [user?.can_hire, user?.id]);
 
   const fetchFeed = useCallback(
     async (nextOffset: number, append: boolean) => {
@@ -188,14 +218,18 @@ export function FeedPageContent() {
                   "Loading listings…"
                 ) : (
                   <>
-                    <span className="font-medium text-foreground">{total}</span> open roles · Maid, cook &amp; shop
-                    helper
+                    <span className="font-medium text-foreground">{total} </span>open roles · Maids, cooks &amp; shop
+                    helpers
                   </>
                 )}
               </p>
             </header>
 
             <NearbyHighlights items={highlights} />
+
+            {user?.can_hire ? (
+              <MyListingsSection listings={myListings} loading={myListingsLoading} compact />
+            ) : null}
 
             {error ? (
               <div

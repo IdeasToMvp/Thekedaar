@@ -4,7 +4,8 @@ import Link from "next/link";
 import { useEffect } from "react";
 import type { MeUser } from "@/lib/auth/types";
 import { ThekedaarLogo } from "@/components/brand/ThekedaarLogo";
-import { isWorkerView, viewerModeLabel } from "@/lib/jobs/viewerRole";
+import { viewerModeLabel } from "@/lib/jobs/viewerRole";
+import { FeedNavLinks } from "./FeedNavLinks";
 type Props = {
   open: boolean;
   user: MeUser;
@@ -13,8 +14,6 @@ type Props = {
 };
 
 export function AppNavDrawer({ open, user, onClose, onSignOut }: Props) {
-  const worker = isWorkerView(user);
-
   useEffect(() => {
     if (!open) return;
     const prev = document.body.style.overflow;
@@ -61,27 +60,11 @@ export function AppNavDrawer({ open, user, onClose, onSignOut }: Props) {
           <p className="text-xs text-muted">{viewerModeLabel(user)}</p>
         </div>
 
-        <ul className="flex-1 space-y-1 overflow-y-auto p-3 text-sm font-medium">
-          <li>
-            <Link
-              href="/feed"
-              onClick={onClose}
-              className="block rounded-lg bg-brand/10 px-3 py-3 text-brand"
-            >
-              Find Jobs
-            </Link>
-          </li>
-          <li>
-            <span className="block rounded-lg px-3 py-3 text-muted" title="Coming soon">
-              {worker ? "My Applications" : "My Listings"}
-            </span>
-          </li>
-          <li>
-            <span className="block rounded-lg px-3 py-3 text-muted" title="Coming soon">
-              Messages
-            </span>
-          </li>
-        </ul>
+        <FeedNavLinks
+          user={user}
+          onNavigate={onClose}
+          className="flex flex-1 flex-col gap-1 overflow-y-auto p-3 text-sm font-medium [&_a]:rounded-lg [&_a]:px-3 [&_a]:py-3 [&_span]:rounded-lg [&_span]:px-3 [&_span]:py-3"
+        />
 
         <div className="border-t border-border p-4">
           <button
