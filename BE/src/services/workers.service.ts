@@ -1,19 +1,28 @@
 import { supabaseAdmin } from "./supabase.service";
 
-export type WorkerFeedRow = {
+export type WorkerUserJoin = {
+  id: string;
+  name: string | null;
+  city: string | null;
+  phone: string;
+  created_at: string;
+};
+
+/** Shape returned by Supabase for worker_profiles + users!inner join */
+export type WorkerFeedRowRaw = {
   user_id: string;
   role: string | null;
   experience_years: number | null;
   expected_salary: number | null;
   availability: string | null;
-  users: {
-    id: string;
-    name: string | null;
-    city: string | null;
-    phone: string;
-    created_at: string;
-  };
+  users: WorkerUserJoin | WorkerUserJoin[];
 };
+
+function resolveWorkerUser(users: WorkerUserJoin | WorkerUserJoin[]): WorkerUserJoin {
+  const u = Array.isArray(users) ? users[0] : users;
+  if (!u) throw new Error("Worker user row missing");
+  return u;
+}
 
 export type WorkerFeedApiWorker = {
   id: string;
@@ -38,14 +47,8 @@ function waDigitsFromPhone(phone: string): string {
   return phone.replace(/\D/g, "");
 }
 
-type UsersJoin = WorkerFeedRow["users"] | WorkerFeedRow["users"][];
-
-export function mapWorkerToFeedApi(row: WorkerFeedRow, viewerId?: string): WorkerFeedApiWorker {
-  const raw = row.users as UsersJoin;
-  const u = Array.isArray(raw) ? raw[0] : raw;
-  if (!u) {
-    throw new Error("Worker user row missing");
-  }
+export function mapWorkerToFeedApi(row: WorkerFeedRowRaw, viewerId?: string): WorkerFeedApiWorker {
+  const u = resolveWorkerUser(row.users);
   const phone = u.phone ?? "";
   return {
     id: u.id,
@@ -102,7 +105,7 @@ export async function listWorkersForFeed(input: {
   const { data, error } = await q;
   if (error) throw error;
 
-  const rows = (data ?? []) as WorkerFeedRow[];
+  const rows = (data ?? []) as WorkerFeedRowRaw[];
   return {
     workers: rows.map((row) => mapWorkerToFeedApi(row, input.viewerId)),
   };
