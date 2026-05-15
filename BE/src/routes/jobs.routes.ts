@@ -1,12 +1,13 @@
 import { Router } from "express";
 import { z } from "zod";
 import { handleFeedGet } from "../handlers/feed.handler";
+import { optionalSession } from "../middleware/optionalSession";
 import { requireSession, type RequestWithSession } from "../middleware/requireSession";
 import { buildFeedLimits, getJobById, recordFeedJobContact } from "../services/jobs.service";
 
 const router = Router();
 
-router.get("/feed", requireSession, handleFeedGet);
+router.get("/feed", optionalSession, handleFeedGet);
 
 const ContactBodySchema = z.object({
   action: z.enum(["apply", "whatsapp", "hire"]),

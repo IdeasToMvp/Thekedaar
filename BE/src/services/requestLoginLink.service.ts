@@ -3,6 +3,10 @@ import { getUserByPhone } from "./user.service";
 import { sendWhatsAppText } from "./whatsapp.service";
 import { normalizePhoneForWhatsApp } from "../utils/phone";
 
+export type RequestLoginLinkResult =
+  | { sent: true; messageId?: string }
+  | { sent: false; reason: "not_registered" };
+
 function webBaseUrl(): string | null {
   const raw = process.env.WEB_BASE_URL?.trim();
   if (!raw) return null;
@@ -10,12 +14,15 @@ function webBaseUrl(): string | null {
   return `https://${host}`;
 }
 
-export async function requestLoginLinkViaWhatsApp(rawPhone: string): Promise<void> {
+export async function requestLoginLinkViaWhatsApp(rawPhone: string): Promise<RequestLoginLinkResult> {
   const normalized = normalizePhoneForWhatsApp(rawPhone);
   if (!normalized) throw new Error("Invalid phone");
 
   const user = await getUserByPhone(normalized);
-  if (!user) return;
+  if (!user) {
+    console.info(`request-login-link: no user for phone ${normalized.slice(0, 4)}***`);
+    return { sent: false, reason: "not_registered" };
+  }
 
   const webBase = webBaseUrl();
   if (!webBase) {
@@ -33,5 +40,7 @@ export async function requestLoginLinkViaWhatsApp(rawPhone: string): Promise<voi
     url +
     "\n\nIf you didn’t ask for this, ignore this message.";
 
-  await sendWhatsAppText(normalized, body);
+  const { messageId } = await sendWhatsAppText(normalized, body);
+  console.info(`request-login-link: sent to ${normalized.slice(0, 4)}*** messageId=${messageId ?? "?"}`);
+  return { sent: true, messageId };
 }

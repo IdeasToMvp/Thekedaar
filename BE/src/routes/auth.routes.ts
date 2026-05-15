@@ -6,6 +6,7 @@ import { requestLoginLinkViaWhatsApp } from "../services/requestLoginLink.servic
 import { getUserWithProfiles, updateUserProfile, type UserRow } from "../services/user.service";
 import { allowRateLimit } from "../utils/rateLimit";
 import { normalizePhoneForWhatsApp } from "../utils/phone";
+import { optionalSession } from "../middleware/optionalSession";
 import { requireSession, type RequestWithSession } from "../middleware/requireSession";
 import { subscriptionPayload } from "../utils/subscription";
 import {
@@ -64,7 +65,7 @@ router.post("/exchange", async (req, res) => {
   }
 });
 
-router.get("/feed", requireSession, handleFeedGet);
+router.get("/feed", optionalSession, handleFeedGet);
 
 router.get("/activity", requireSession, async (req, res) => {
   const session = (req as RequestWithSession).session;
@@ -178,12 +179,13 @@ router.post("/request-login-link", async (req, res) => {
   }
 
   try {
-    await requestLoginLinkViaWhatsApp(parsed.data.phone);
-  } catch (e) {
+    const result = await requestLoginLinkViaWhatsApp(parsed.data.phone);
+    return res.status(200).json({ ok: true, ...result });
+  } catch (e: unknown) {
+    const msg = e instanceof Error ? e.message : "Failed to send login link";
     console.error("request-login-link:", e);
+    return res.status(502).json({ ok: false, error: msg });
   }
-
-  return res.status(200).json({ ok: true });
 });
 
 export default router;

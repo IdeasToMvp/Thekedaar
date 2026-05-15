@@ -1,6 +1,10 @@
-import axios from "axios";
+import axios, { isAxiosError } from "axios";
 
-export async function sendWhatsAppText(to: string, body: string) {
+export type WhatsAppSendResult = {
+  messageId?: string;
+};
+
+export async function sendWhatsAppText(to: string, body: string): Promise<WhatsAppSendResult> {
   const token = process.env.WHATSAPP_ACCESS_TOKEN;
   const phoneNumberId = process.env.WHATSAPP_PHONE_NUMBER_ID;
   if (!token || !phoneNumberId) {
@@ -9,21 +13,41 @@ export async function sendWhatsAppText(to: string, body: string) {
 
   const url = `https://graph.facebook.com/v21.0/${phoneNumberId}/messages`;
 
-  await axios.post(
-    url,
-    {
-      messaging_product: "whatsapp",
-      to,
-      type: "text",
-      text: { body },
-    },
-    {
-      headers: {
-        Authorization: `Bearer ${token}`,
-        "Content-Type": "application/json",
+  try {
+    const { data } = await axios.post(
+      url,
+      {
+        messaging_product: "whatsapp",
+        to,
+        type: "text",
+        text: { body },
       },
-      timeout: 15000,
-    },
-  );
-}
+      {
+        headers: {
+          Authorization: `Bearer ${token}`,
+          "Content-Type": "application/json",
+        },
+        timeout: 15000,
+      },
+    );
 
+    const messageId =
+      typeof data?.messages?.[0]?.id === "string" ? data.messages[0].id : undefined;
+    return { messageId };
+  } catch (e: unknown) {
+    if (isAxiosError(e)) {
+      const meta = e.response?.data as { error?: { message?: string; code?: number } } | undefined;
+      const code = meta?.error?.code;
+      const detail = meta?.error?.message ?? e.message;
+
+      if (code === 131047 || detail.toLowerCase().includes("re-engagement")) {
+        throw new Error(
+          "WhatsApp requires you to message Thekedaar first (within 24h) before we can send a login link. Open WhatsApp, send Hi, then request the link again.",
+        );
+      }
+
+      throw new Error(`WhatsApp API error${code != null ? ` (${code})` : ""}: ${detail}`);
+    }
+    throw e;
+  }
+}

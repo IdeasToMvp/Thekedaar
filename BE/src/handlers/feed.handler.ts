@@ -17,6 +17,14 @@ const FeedQuerySchema = z.object({
   sort: z.enum(["newest", "salary_high", "salary_low"]).optional().default("newest"),
 });
 
+function jobsForViewer(
+  jobs: Awaited<ReturnType<typeof listJobsForFeed>>["jobs"],
+  authenticated: boolean,
+) {
+  if (authenticated) return jobs;
+  return jobs.map(({ contactWaDigits: _wa, ...job }) => job);
+}
+
 export async function handleFeedGet(req: Request, res: Response): Promise<void> {
   const session = (req as RequestWithSession).session;
   const parsed = FeedQuerySchema.safeParse(req.query);
@@ -35,15 +43,16 @@ export async function handleFeedGet(req: Request, res: Response): Promise<void> 
       offset,
       limit,
     });
-    const limits = await buildFeedLimits(session.sub);
+    const limits = session ? await buildFeedLimits(session.sub) : null;
     const [cities, categories] = await Promise.all([distinctJobCities(), distinctJobCategories()]);
     res.status(200).json({
-      jobs,
+      jobs: jobsForViewer(jobs, Boolean(session)),
       total,
       offset,
       limit,
       hasMore: offset + jobs.length < total,
       limits,
+      authenticated: Boolean(session),
       meta: { cities, categories },
     });
   } catch (e: unknown) {
