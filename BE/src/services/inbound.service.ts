@@ -9,6 +9,7 @@ import {
 import { upsertIdentityByPhone } from "./user.service";
 import { upsertWorkerProfile } from "./worker.service";
 import { upsertRecruiterProfile } from "./recruiter.service";
+import { handleApplicationReplyFromWhatsApp } from "./applications.service";
 import { createJob, findJobsForWorker } from "./jobs.service";
 import { createMagicLinkForUser } from "./magicLink.service";
 import {
@@ -302,6 +303,10 @@ export async function handleIncomingWhatsAppMessage(payload: unknown) {
   const text = msg.text;
   const norm = normalizeText(text);
 
+  if (await handleApplicationReplyFromWhatsApp(phone, text)) {
+    return;
+  }
+
   if (isHelpCommand(text)) {
     await sendWhatsAppText(
       phone,
@@ -311,6 +316,7 @@ export async function handleIncomingWhatsAppMessage(payload: unknown) {
         "- switch — job vs hiring menu\n" +
         "- back — previous question\n" +
         "- reset — start over\n\n" +
+        "Application: reply 1/approve or 0/decline after a new apply alert.\n" +
         "Skills: reply 1,2,3 (Cook, Maid, Shop helper) comma se.\n" +
         "Send Hi anytime.",
     );

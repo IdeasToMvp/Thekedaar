@@ -2,6 +2,15 @@ import type { FeedJob } from "./types";
 
 export type ApplicationStatus = "pending" | "approved" | "rejected";
 
+export type ContactDetails = {
+  name: string;
+  phone: string;
+  city?: string | null;
+  sector?: string | null;
+  fullAddress?: string | null;
+  workAddress?: string | null;
+};
+
 export type JobApplication = {
   id: string;
   jobId: string;
@@ -20,8 +29,9 @@ export type JobApplication = {
     age: number | null;
     experienceYears: number | null;
     availability: string | null;
+    fullAddress?: string | null;
   };
-  employerContact?: { name: string; phone: string };
+  employerContact?: ContactDetails;
 };
 
 export type WorkerApplicationsResponse = {

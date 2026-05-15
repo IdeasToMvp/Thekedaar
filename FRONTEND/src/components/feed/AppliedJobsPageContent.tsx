@@ -6,33 +6,12 @@ import type { JobApplication, WorkerApplicationsResponse } from "@/lib/jobs/appl
 import { isWorkerAccount } from "@/lib/auth/accountRole";
 import { formatRelativeTime, formatSalary } from "@/lib/formatRelativeTime";
 import { workerOrJobLocation } from "@/lib/location/publicLocation";
-import { formatPhoneDisplay } from "@/lib/workers/formatPhone";
 import type { ApplicationStatus } from "@/lib/jobs/types";
 import { useFeedUser } from "./FeedUserProvider";
 import { AppNavbar } from "./AppNavbar";
 import { JobListingViewModal } from "./JobListingViewModal";
-
-function statusBadge(status: ApplicationStatus) {
-  if (status === "approved") {
-    return (
-      <span className="rounded-full bg-emerald-100 px-2 py-0.5 text-[10px] font-bold uppercase text-emerald-800">
-        Approved
-      </span>
-    );
-  }
-  if (status === "rejected") {
-    return (
-      <span className="rounded-full bg-slate-200 px-2 py-0.5 text-[10px] font-bold uppercase text-slate-700">
-        Not selected
-      </span>
-    );
-  }
-  return (
-    <span className="rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-bold uppercase text-amber-900">
-      Pending
-    </span>
-  );
-}
+import { ApplicationStatusBadge } from "./ApplicationStatusBadge";
+import { ContactDetailsCard } from "./ContactDetailsCard";
 
 export function AppliedJobsPageContent() {
   const { user, userLoading, cityId, setCityId } = useFeedUser();
@@ -131,24 +110,21 @@ export function AppliedJobsPageContent() {
                         <h2 className="font-serif text-lg font-bold text-foreground">{job.title}</h2>
                         {location ? <p className="mt-0.5 text-xs text-muted">{location}</p> : null}
                       </div>
-                      {statusBadge(app.status)}
+                      <ApplicationStatusBadge status={app.status} />
                     </div>
-                    <p className="mt-2 text-sm font-bold text-brand">{formatSalary(job.salaryPerMonth)}/mo</p>
+                    <p className="mt-2 text-sm font-bold text-brand">{formatSalary(job.salaryPerMonth)}</p>
                     <p className="mt-1 text-[11px] text-muted">Applied {formatRelativeTime(app.appliedAt)}</p>
 
                     {app.status === "approved" && app.employerContact ? (
-                      <div className="mt-3 rounded-xl border border-emerald-200 bg-emerald-50 px-3 py-2.5 text-sm">
-                        <p className="text-[10px] font-semibold uppercase tracking-wide text-emerald-800">
-                          Employer contact
-                        </p>
-                        <p className="mt-1 font-medium text-foreground">{app.employerContact.name}</p>
-                        <a
-                          href={`tel:${app.employerContact.phone.replace(/\D/g, "")}`}
-                          className="mt-0.5 inline-block font-semibold text-brand hover:underline"
-                        >
-                          {formatPhoneDisplay(app.employerContact.phone)}
-                        </a>
-                      </div>
+                      <ContactDetailsCard
+                        title="Employer contact"
+                        name={app.employerContact.name}
+                        phone={app.employerContact.phone}
+                        city={app.employerContact.city}
+                        sector={app.employerContact.sector}
+                        fullAddress={app.employerContact.fullAddress}
+                        workAddress={app.employerContact.workAddress}
+                      />
                     ) : app.status === "pending" ? (
                       <p className="mt-3 text-xs text-muted">
                         Waiting for employer approval. You will get WhatsApp when approved.

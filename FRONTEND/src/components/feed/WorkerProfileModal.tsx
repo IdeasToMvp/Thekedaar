@@ -97,7 +97,7 @@ export function WorkerProfileModal({ open, mode, worker, onClose }: Props) {
             </button>
           </div>
           <p className="mt-3 text-lg font-bold text-brand">
-            {worker.expectedSalary > 0 ? `${formatSalary(worker.expectedSalary)}/mo expected` : "Salary not set"}
+            {worker.expectedSalary > 0 ? `${formatSalary(worker.expectedSalary)} expected` : "Salary not set"}
           </p>
         </div>
 

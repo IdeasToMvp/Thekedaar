@@ -7,6 +7,7 @@ import type { FeedJob } from "@/lib/jobs/types";
 export function useJobApply(
   job: FeedJob,
   onApplied: (jobId: string, status: ApplicationStatus) => void,
+  options?: { onSuccess?: () => void },
 ) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -31,6 +32,7 @@ export function useJobApply(
       const next = data.application?.status ?? "pending";
       setStatus(next);
       onApplied(job.id, next);
+      options?.onSuccess?.();
     } catch (e: unknown) {
       setError(e instanceof Error ? e.message : "Something went wrong");
     } finally {

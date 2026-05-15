@@ -34,6 +34,7 @@ export type ConversationStep =
   | "RECRUITER_WORK_SHIFT_CUSTOM"
   | "RECRUITER_TIMING"
   | "RECRUITER_URGENCY"
+  | "APPLICATION_REVIEW"
   | "DONE";
 
 export type ConversationFlow =
@@ -64,6 +65,7 @@ function inferContext(
     return { current_flow: "recruiter_onboarding", current_mode: role ?? "recruiter" };
   }
   if (step === "CHOOSE_ROLE") return { current_flow: "idle", current_mode: null };
+  if (step === "APPLICATION_REVIEW") return { current_flow: "idle", current_mode: role ?? "recruiter" };
   return { current_flow: "idle", current_mode: role };
 }
 

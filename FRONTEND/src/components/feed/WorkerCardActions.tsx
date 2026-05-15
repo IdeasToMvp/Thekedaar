@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import type { FeedWorker, HiredWorker, WorkerHireLimits } from "@/lib/workers/types";
 import type { MeUser } from "@/lib/auth/types";
 import { isEmployerAccount } from "@/lib/auth/accountRole";
@@ -20,12 +20,18 @@ export function WorkerCardActions({ worker, user, hired, contactsRemaining, onHi
   const [error, setError] = useState<string | null>(null);
   const [modal, setModal] = useState<"view" | "hire" | null>(null);
   const [hiredWorker, setHiredWorker] = useState<HiredWorker | null>(null);
+  const [contacted, setContacted] = useState(hired);
+
+  useEffect(() => {
+    setContacted(hired);
+  }, [hired]);
 
   if (!employerView) {
     return <p className="mt-auto pt-3 text-xs text-muted">Worker profiles are for employer accounts.</p>;
   }
 
-  async function handleHire() {
+  async function handleContact() {
+    if (contacted) return;
     setError(null);
     setLoading(true);
     try {
@@ -37,6 +43,7 @@ export function WorkerCardActions({ worker, user, hired, contactsRemaining, onHi
       const unlocked = data.worker as HiredWorker | undefined;
       if (!unlocked) throw new Error("Worker details missing");
       setHiredWorker(unlocked);
+      setContacted(true);
       setModal("hire");
       onHired(unlocked, data.limits as WorkerHireLimits | undefined);
     } catch (e: unknown) {
@@ -46,15 +53,7 @@ export function WorkerCardActions({ worker, user, hired, contactsRemaining, onHi
     }
   }
 
-  function openHire() {
-    if (hiredWorker) {
-      setModal("hire");
-      return;
-    }
-    void handleHire();
-  }
-
-  const hireDisabled = !hired && contactsRemaining <= 0;
+  const limitReached = !contacted && contactsRemaining <= 0;
 
   return (
     <>
@@ -74,15 +73,14 @@ export function WorkerCardActions({ worker, user, hired, contactsRemaining, onHi
           </button>
           <button
             type="button"
-            onClick={openHire}
-            disabled={loading || hireDisabled}
+            onClick={() => void handleContact()}
+            disabled={loading || contacted || limitReached}
             className="min-h-9 flex-1 rounded-full bg-brand-dark text-sm font-semibold text-white transition hover:opacity-95 disabled:cursor-not-allowed disabled:opacity-50"
           >
-            {loading ? "…" : hired ? "Contact" : "Hire"}
-            {hired ? " ✓" : ""}
+            {loading ? "…" : contacted ? "Contacted" : "Contact"}
           </button>
         </div>
-        {hireDisabled ? (
+        {limitReached ? (
           <p className="text-[11px] text-muted">Worker contact limit reached for your plan.</p>
         ) : null}
       </div>

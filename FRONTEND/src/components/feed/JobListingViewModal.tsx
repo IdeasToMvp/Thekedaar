@@ -53,7 +53,7 @@ export function JobListingViewModal({
   const activeJob = job ?? STUB_JOB;
   const action = job ? primaryJobAction(user) : null;
   const isApply = action === "apply";
-  const apply = useJobApply(activeJob, onApplicationUpdated);
+  const apply = useJobApply(activeJob, onApplicationUpdated, { onSuccess: onClose });
   const hire = useJobContact(activeJob, action === "hire" ? "hire" : null, onContactRecorded ?? (() => {}));
 
   const loading = isApply ? apply.loading : hire.loading !== null;
@@ -118,7 +118,7 @@ export function JobListingViewModal({
               ✕
             </button>
           </div>
-          <p className="mt-3 text-lg font-bold text-brand">{formatSalary(job.salaryPerMonth)}/mo</p>
+          <p className="mt-3 text-lg font-bold text-brand">{formatSalary(job.salaryPerMonth)}</p>
         </div>
 
         <div className="min-h-0 flex-1 overflow-y-auto px-5 py-4">

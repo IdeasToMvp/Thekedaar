@@ -46,7 +46,7 @@ export function AppNavbar({ user, cityId, onCityChange }: Props) {
             ) : null}
             <Link
               href="/feed/profile"
-              className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-sm font-bold transition hover:opacity-90 ${
+              className={`hidden h-9 w-9 shrink-0 items-center justify-center rounded-full text-sm font-bold transition hover:opacity-90 lg:flex ${
                 pathname === "/feed/profile"
                   ? "bg-brand text-white ring-2 ring-brand/30"
                   : "bg-brand/15 text-brand"

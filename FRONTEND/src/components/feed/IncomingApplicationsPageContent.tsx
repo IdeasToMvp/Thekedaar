@@ -5,10 +5,11 @@ import type { IncomingApplicationsResponse, JobApplication } from "@/lib/jobs/ap
 import { isEmployerAccount } from "@/lib/auth/accountRole";
 import { formatRelativeTime, formatSalary } from "@/lib/formatRelativeTime";
 import { workerOrJobLocation } from "@/lib/location/publicLocation";
-import { formatPhoneDisplay } from "@/lib/workers/formatPhone";
 import type { ApplicationStatus } from "@/lib/jobs/types";
 import { useFeedUser } from "./FeedUserProvider";
 import { AppNavbar } from "./AppNavbar";
+import { ApplicationStatusBadge } from "./ApplicationStatusBadge";
+import { ContactDetailsCard } from "./ContactDetailsCard";
 
 export function IncomingApplicationsPageContent() {
   const { user, userLoading, cityId, setCityId } = useFeedUser();
@@ -71,6 +72,74 @@ export function IncomingApplicationsPageContent() {
   const pending = applications.filter((a) => a.status === "pending");
   const rest = applications.filter((a) => a.status !== "pending");
 
+  function renderCard(app: JobApplication) {
+    const job = app.job;
+    const worker = app.worker;
+    const location = workerOrJobLocation({
+      publicLocation: job.publicLocation,
+      city: job.city,
+      sector: job.sector,
+    });
+    const acting = actingId === app.id;
+
+    return (
+      <li key={app.id} className="flex flex-col rounded-2xl border border-border bg-surface p-4 shadow-sm">
+        <div className="flex items-start justify-between gap-2">
+          <div>
+            <p className="text-xs font-semibold text-muted">{job.category}</p>
+            <h2 className="font-serif text-lg font-bold text-foreground">{job.title}</h2>
+            {location ? <p className="mt-0.5 text-xs text-muted">{location}</p> : null}
+          </div>
+          <ApplicationStatusBadge status={app.status} />
+        </div>
+        <p className="mt-2 text-sm font-bold text-brand">{formatSalary(job.salaryPerMonth)}</p>
+        <p className="mt-1 text-[11px] text-muted">Applied {formatRelativeTime(app.appliedAt)}</p>
+
+        {worker && app.status === "approved" && worker.phone ? (
+          <ContactDetailsCard
+            title="Worker contact"
+            name={worker.name}
+            phone={worker.phone}
+            city={worker.city}
+            sector={worker.sector}
+            fullAddress={worker.fullAddress}
+          />
+        ) : worker ? (
+          <div className="mt-3 rounded-xl border border-border bg-slate-50 px-3 py-2.5 text-sm">
+            <p className="text-[10px] font-semibold uppercase tracking-wide text-muted">Applicant</p>
+            <p className="mt-1 font-medium text-foreground">{worker.name}</p>
+            <p className="text-xs text-muted">
+              {worker.skills.join(", ") || "—"}
+              {worker.experienceYears != null ? ` · ${worker.experienceYears} yrs exp` : ""}
+            </p>
+            <p className="mt-1 text-xs text-muted">Phone and address unlock after you approve</p>
+          </div>
+        ) : null}
+
+        {app.status === "pending" ? (
+          <div className="mt-4 flex gap-2">
+            <button
+              type="button"
+              disabled={acting}
+              onClick={() => void setStatus(app.id, "rejected")}
+              className="min-h-9 flex-1 rounded-full border border-border text-sm font-semibold text-foreground disabled:opacity-50"
+            >
+              Decline
+            </button>
+            <button
+              type="button"
+              disabled={acting}
+              onClick={() => void setStatus(app.id, "approved")}
+              className="min-h-9 flex-1 rounded-full bg-brand-dark text-sm font-semibold text-white disabled:opacity-50"
+            >
+              {acting ? "…" : "Approve"}
+            </button>
+          </div>
+        ) : null}
+      </li>
+    );
+  }
+
   return (
     <div className="flex h-dvh flex-col overflow-hidden bg-background">
       {showNavbar && user ? (
@@ -84,7 +153,7 @@ export function IncomingApplicationsPageContent() {
           <header>
             <h1 className="font-serif text-2xl font-bold text-foreground">Applications</h1>
             <p className="mt-1 text-sm text-muted">
-              Workers who applied to your listings. Approve to share your contact on the site and WhatsApp.
+              Workers who applied to your listings. Approve to share contact on the site and WhatsApp.
             </p>
           </header>
 
@@ -95,9 +164,9 @@ export function IncomingApplicationsPageContent() {
           ) : null}
 
           {loading ? (
-            <ul className="mt-6 space-y-3">
+            <ul className="mt-6 grid list-none gap-3 sm:grid-cols-2 lg:grid-cols-3">
               {[1, 2].map((i) => (
-                <li key={i} className="h-32 animate-pulse rounded-2xl bg-slate-200/60" />
+                <li key={i} className="h-36 animate-pulse rounded-2xl bg-slate-200/60" />
               ))}
             </ul>
           ) : applications.length === 0 ? (
@@ -109,26 +178,16 @@ export function IncomingApplicationsPageContent() {
               {pending.length > 0 ? (
                 <section>
                   <h2 className="text-sm font-semibold text-foreground">Pending review ({pending.length})</h2>
-                  <ul className="mt-3 space-y-3">
-                    {pending.map((app) => (
-                      <ApplicationCard
-                        key={app.id}
-                        app={app}
-                        acting={actingId === app.id}
-                        onApprove={() => void setStatus(app.id, "approved")}
-                        onReject={() => void setStatus(app.id, "rejected")}
-                      />
-                    ))}
+                  <ul className="mt-3 grid list-none gap-3 sm:grid-cols-2 lg:grid-cols-3">
+                    {pending.map(renderCard)}
                   </ul>
                 </section>
               ) : null}
               {rest.length > 0 ? (
                 <section>
                   <h2 className="text-sm font-semibold text-muted">Earlier</h2>
-                  <ul className="mt-3 space-y-3">
-                    {rest.map((app) => (
-                      <ApplicationCard key={app.id} app={app} acting={false} />
-                    ))}
+                  <ul className="mt-3 grid list-none gap-3 sm:grid-cols-2 lg:grid-cols-3">
+                    {rest.map(renderCard)}
                   </ul>
                 </section>
               ) : null}
@@ -137,93 +196,5 @@ export function IncomingApplicationsPageContent() {
         </div>
       </main>
     </div>
-  );
-}
-
-function ApplicationCard({
-  app,
-  acting,
-  onApprove,
-  onReject,
-}: {
-  app: JobApplication;
-  acting: boolean;
-  onApprove?: () => void;
-  onReject?: () => void;
-}) {
-  const job = app.job;
-  const worker = app.worker;
-  const location = workerOrJobLocation({
-    publicLocation: job.publicLocation,
-    city: job.city,
-    sector: job.sector,
-  });
-
-  return (
-    <li className="rounded-2xl border border-border bg-surface p-4 shadow-sm">
-      <div className="flex flex-wrap items-start justify-between gap-2">
-        <div>
-          <p className="text-xs font-semibold text-muted">{job.category}</p>
-          <p className="font-serif text-lg font-bold text-foreground">{job.title}</p>
-          {location ? <p className="text-xs text-muted">{location}</p> : null}
-          <p className="mt-1 text-sm font-bold text-brand">{formatSalary(job.salaryPerMonth)}/mo</p>
-        </div>
-        <span
-          className={`rounded-full px-2 py-0.5 text-[10px] font-bold uppercase ${
-            app.status === "approved"
-              ? "bg-emerald-100 text-emerald-800"
-              : app.status === "rejected"
-                ? "bg-slate-200 text-slate-700"
-                : "bg-amber-100 text-amber-900"
-          }`}
-        >
-          {app.status}
-        </span>
-      </div>
-
-      {worker ? (
-        <div className="mt-3 rounded-xl border border-border bg-slate-50 px-3 py-2.5 text-sm">
-          <p className="text-[10px] font-semibold uppercase tracking-wide text-muted">Applicant</p>
-          <p className="mt-1 font-medium text-foreground">{worker.name}</p>
-          <p className="text-xs text-muted">
-            {worker.skills.join(", ") || "—"}
-            {worker.experienceYears != null ? ` · ${worker.experienceYears} yrs exp` : ""}
-          </p>
-          {app.status === "approved" ? (
-            <a
-              href={`tel:${worker.phone.replace(/\D/g, "")}`}
-              className="mt-1 inline-block text-sm font-semibold text-brand hover:underline"
-            >
-              {formatPhoneDisplay(worker.phone)}
-            </a>
-          ) : (
-            <p className="mt-1 text-xs text-muted">Phone shared with worker after you approve</p>
-          )}
-        </div>
-      ) : null}
-
-      <p className="mt-2 text-[11px] text-muted">Applied {formatRelativeTime(app.appliedAt)}</p>
-
-      {app.status === "pending" && onApprove && onReject ? (
-        <div className="mt-3 flex gap-2">
-          <button
-            type="button"
-            disabled={acting}
-            onClick={onReject}
-            className="min-h-9 flex-1 rounded-full border border-border text-sm font-semibold text-foreground disabled:opacity-50"
-          >
-            Decline
-          </button>
-          <button
-            type="button"
-            disabled={acting}
-            onClick={onApprove}
-            className="min-h-9 flex-1 rounded-full bg-brand-dark text-sm font-semibold text-white disabled:opacity-50"
-          >
-            {acting ? "…" : "Approve"}
-          </button>
-        </div>
-      ) : null}
-    </li>
   );
 }

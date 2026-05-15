@@ -1,4 +1,5 @@
 import { supabaseAdmin } from "./supabase.service";
+import { sendHireContactDetailsWhatsApp } from "../utils/contactDetails";
 import { getUserById } from "./user.service";
 import { formatPublicLocation } from "../utils/publicLocation";
 import { maxFeedWorkerContacts, normalizePlan, type BillingPlan } from "../utils/planLimits";
@@ -221,6 +222,11 @@ export async function recordEmployerWorkerHire(input: {
       action: "hire",
     });
     if (error) throw error;
+    try {
+      await sendHireContactDetailsWhatsApp(input.employerId, input.workerId);
+    } catch {
+      /* non-blocking */
+    }
   }
 
   const sb = supabaseAdmin();

@@ -60,7 +60,7 @@ export function ContactedWorkersPageContent() {
           <header>
             <h1 className="font-serif text-2xl font-bold text-foreground">Contacted workers</h1>
             <p className="mt-1 text-sm text-muted">
-              Workers you hired from the feed — phone and WhatsApp unlocked here.
+              Workers you contacted from Find Workers — phone and address unlock immediately.
             </p>
             {limits ? (
               <p className="mt-2 text-xs text-muted">
@@ -83,7 +83,7 @@ export function ContactedWorkersPageContent() {
             </ul>
           ) : items.length === 0 ? (
             <p className="mt-10 text-center text-sm text-muted">
-              No workers yet. Tap <span className="font-semibold text-foreground">Hire</span> on Find Workers to save
+              No workers yet. Tap <span className="font-semibold text-foreground">Contact</span> on Find Workers to save
               someone here.
             </p>
           ) : (
@@ -111,7 +111,7 @@ export function ContactedWorkersPageContent() {
                           {worker.expectedSalary > 0 ? formatSalary(worker.expectedSalary) : "—"}
                         </p>
                       </div>
-                      <p className="mt-3 text-[11px] text-muted">Hired {formatRelativeTime(hiredAt)}</p>
+                      <p className="mt-3 text-[11px] text-muted">Contacted {formatRelativeTime(hiredAt)}</p>
                       <button
                         type="button"
                         onClick={() => setSelected(worker)}
