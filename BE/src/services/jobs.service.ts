@@ -35,6 +35,7 @@ export type JobFeedApiJob = {
   urgency: "low" | "medium" | "high";
   posterSubscription: { plan: BillingPlan; features: Record<string, boolean> };
   contactWaDigits: string;
+  isOwnListing?: boolean;
 };
 
 function normalizeUrgency(u: string | null | undefined): "low" | "medium" | "high" {
@@ -56,6 +57,7 @@ function avatarKey(name: string | null, phone: string): string {
 export function mapJobToFeedApi(
   job: JobFeedRow,
   recruiter: { phone: string; name: string | null; subscription_plan?: string | null },
+  viewerId?: string,
 ): JobFeedApiJob {
   const plan = normalizePlan(recruiter.subscription_plan ?? undefined);
   return {
@@ -71,6 +73,7 @@ export function mapJobToFeedApi(
     urgency: normalizeUrgency(job.urgency),
     posterSubscription: { plan, features: plan === "pro" ? { boosted_listing: true } : {} },
     contactWaDigits: waDigitsFromPhone(recruiter.phone),
+    ...(viewerId && job.recruiter_id === viewerId ? { isOwnListing: true } : {}),
   };
 }
 
@@ -196,14 +199,15 @@ export async function listJobsForFeed(input: {
   sort: "newest" | "salary_high" | "salary_low";
   offset: number;
   limit: number;
+  viewerId?: string;
 }): Promise<{ jobs: JobFeedApiJob[]; rawRows: JobFeedRow[] }> {
   const sb = supabaseAdmin();
   let q = sb.from("jobs").select(
     "id,recruiter_id,title,city,salary,timing,accommodation,urgency,category,description,created_at",
   );
 
-  if (input.city) q = q.eq("city", input.city);
-  if (input.category) q = q.eq("category", input.category);
+  if (input.city) q = q.ilike("city", input.city);
+  if (input.category) q = q.ilike("category", input.category);
 
   if (input.sort === "newest") q = q.order("created_at", { ascending: false });
   else if (input.sort === "salary_high") q = q.order("salary", { ascending: false, nullsFirst: false });
@@ -221,9 +225,9 @@ export async function listJobsForFeed(input: {
   const jobs = rows.map((row) => {
     const rec = recruiters.get(row.recruiter_id);
     if (!rec) {
-      return mapJobToFeedApi(row, { phone: "", name: null, subscription_plan: "free" });
+      return mapJobToFeedApi(row, { phone: "", name: null, subscription_plan: "free" }, input.viewerId);
     }
-    return mapJobToFeedApi(row, rec);
+    return mapJobToFeedApi(row, rec, input.viewerId);
   });
   return { jobs, rawRows: rows };
 }
@@ -231,8 +235,8 @@ export async function listJobsForFeed(input: {
 export async function countJobsForFeed(input: { city?: string; category?: string }): Promise<number> {
   const sb = supabaseAdmin();
   let q = sb.from("jobs").select("id", { count: "exact", head: true });
-  if (input.city) q = q.eq("city", input.city);
-  if (input.category) q = q.eq("category", input.category);
+  if (input.city) q = q.ilike("city", input.city);
+  if (input.category) q = q.ilike("category", input.category);
   const { count, error } = await q;
   if (error) throw error;
   return count ?? 0;

@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { FeedUserProvider } from "@/components/feed/FeedUserProvider";
 
 export const metadata: Metadata = {
   title: "Job feed — Thekedaar",
@@ -6,5 +7,5 @@ export const metadata: Metadata = {
 };
 
 export default function FeedLayout({ children }: { children: React.ReactNode }) {
-  return children;
+  return <FeedUserProvider>{children}</FeedUserProvider>;
 }

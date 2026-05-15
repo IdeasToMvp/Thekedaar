@@ -1,8 +1,11 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import type { MeResponse, MeUser } from "@/lib/auth/types";
 import type { FeedJob, FeedLimits, FeedResponse } from "@/lib/jobs/types";
+import type { ActivityResponse } from "@/lib/jobs/activity";
+import { enrichFeedWithOwnListings } from "@/lib/jobs/enrichFeedWithOwnListings";
+import type { FeedWorker, WorkersFeedResponse } from "@/lib/workers/types";
+import { filterWorkersBySalary, filterWorkersToLaunchMarket } from "@/lib/workers/filterWorkers";
 import {
   ACTIVE_MARKET,
   cityToApiParam,
@@ -14,52 +17,67 @@ import {
   type SalaryBandId,
 } from "@/lib/launch";
 import { isRecruiterView } from "@/lib/jobs/viewerRole";
+import { useFeedUser } from "./FeedUserProvider";
 import { AppNavbar } from "./AppNavbar";
 import { FeedSidebar } from "./FeedSidebar";
 import { FeedMobileFilters } from "./FeedMobileFilters";
 import { FeaturedJobCard } from "./FeaturedJobCard";
 import { FeedJobCard } from "./FeedJobCard";
+import { WorkerFeedCard } from "./WorkerFeedCard";
 import { NearbyHighlights } from "./NearbyHighlights";
 import { PostJobFab } from "./PostJobFab";
 import { PostJobModal } from "./PostJobModal";
+import { FeedListingTabs, type FeedListingTab } from "./FeedListingTabs";
 
 const PAGE_SIZE = 24;
 
 type SortOption = "newest" | "salary_high" | "salary_low";
 
 export function FeedPageContent() {
-  const [user, setUser] = useState<MeUser | null>(null);
+  const { user, userLoading, cityId, setCityId } = useFeedUser();
+  const [listingTab, setListingTab] = useState<FeedListingTab>("jobs");
+
   const [jobs, setJobs] = useState<FeedJob[]>([]);
-  const [total, setTotal] = useState(0);
-  const [offset, setOffset] = useState(0);
-  const [hasMore, setHasMore] = useState(false);
-  const [loading, setLoading] = useState(true);
-  const [loadingMore, setLoadingMore] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const [myListings, setMyListings] = useState<FeedJob[]>([]);
+  const [workers, setWorkers] = useState<FeedWorker[]>([]);
+  const [jobsTotal, setJobsTotal] = useState(0);
+  const [workersTotal, setWorkersTotal] = useState(0);
+  const [jobsOffset, setJobsOffset] = useState(0);
+  const [workersOffset, setWorkersOffset] = useState(0);
+  const [jobsHasMore, setJobsHasMore] = useState(false);
+  const [workersHasMore, setWorkersHasMore] = useState(false);
+  const [jobsLoading, setJobsLoading] = useState(true);
+  const [workersLoading, setWorkersLoading] = useState(true);
+  const [jobsLoadingMore, setJobsLoadingMore] = useState(false);
+  const [workersLoadingMore, setWorkersLoadingMore] = useState(false);
+  const [jobsError, setJobsError] = useState<string | null>(null);
+  const [workersError, setWorkersError] = useState<string | null>(null);
 
   const [roleId, setRoleId] = useState("");
-  const [cityId, setCityId] = useState(ACTIVE_MARKET.defaultCityId);
   const [salaryBand, setSalaryBand] = useState<SalaryBandId>("all");
   const [sort] = useState<SortOption>("newest");
   const [postJobOpen, setPostJobOpen] = useState(false);
 
   useEffect(() => {
+    if (!user?.can_hire) {
+      setMyListings([]);
+      return;
+    }
     let cancelled = false;
-    fetch("/api/auth/me")
-      .then((r) => r.json() as Promise<MeResponse>)
-      .then((data) => {
-        if (cancelled || !data?.user) return;
-        const u = { ...data.user };
-        if (data.recruiter_profile) u.can_hire = true;
-        setUser(u);
+    fetch("/api/auth/activity")
+      .then((r) => r.json())
+      .then((data: ActivityResponse) => {
+        if (!cancelled) setMyListings(data.myListings ?? []);
       })
-      .catch(() => {});
+      .catch(() => {
+        if (!cancelled) setMyListings([]);
+      });
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [user?.can_hire, user?.id]);
 
-  const fetchFeed = useCallback(
+  const fetchJobsFeed = useCallback(
     async (nextOffset: number, append: boolean) => {
       const params = new URLSearchParams({
         offset: String(nextOffset),
@@ -73,81 +91,171 @@ export function FeedPageContent() {
 
       const resp = await fetch(`/api/feed?${params}`);
       const data = (await resp.json()) as FeedResponse;
-
-      if (!resp.ok) {
-        throw new Error(data.error || "Could not load jobs");
-      }
+      if (!resp.ok) throw new Error(data.error || "Could not load jobs");
 
       const scoped = filterJobsToLaunchMarket(data.jobs, cityId, roleId);
-
-      setTotal(scoped.length < data.jobs.length ? scoped.length : data.total);
-      setHasMore(data.hasMore);
-      setOffset(data.offset + data.jobs.length);
+      setJobsTotal(scoped.length < data.jobs.length ? scoped.length : data.total);
+      setJobsHasMore(data.hasMore);
+      setJobsOffset(data.offset + data.jobs.length);
       setJobs((prev) => (append ? [...prev, ...scoped] : scoped));
+    },
+    [cityId, roleId, sort],
+  );
+
+  const fetchWorkersFeed = useCallback(
+    async (nextOffset: number, append: boolean) => {
+      const params = new URLSearchParams({
+        offset: String(nextOffset),
+        limit: String(PAGE_SIZE),
+        sort,
+      });
+      const apiCity = cityToApiParam(cityId);
+      const apiRole = roleToApiParam(roleId);
+      if (apiCity) params.set("city", apiCity);
+      if (apiRole) params.set("role", apiRole);
+
+      const resp = await fetch(`/api/workers/feed?${params}`);
+      const data = (await resp.json()) as WorkersFeedResponse;
+      if (!resp.ok) throw new Error(data.error || "Could not load workers");
+
+      const scoped = filterWorkersToLaunchMarket(data.workers, cityId, roleId);
+      setWorkersTotal(scoped.length < data.workers.length ? scoped.length : data.total);
+      setWorkersHasMore(data.hasMore);
+      setWorkersOffset(data.offset + data.workers.length);
+      setWorkers((prev) => (append ? [...prev, ...scoped] : scoped));
     },
     [cityId, roleId, sort],
   );
 
   useEffect(() => {
     let cancelled = false;
-    setLoading(true);
-    setError(null);
-    setOffset(0);
-
-    fetchFeed(0, false)
+    setJobsLoading(true);
+    setJobsError(null);
+    setJobsOffset(0);
+    fetchJobsFeed(0, false)
       .catch((e: unknown) => {
         if (!cancelled) {
-          setError(e instanceof Error ? e.message : "Could not load jobs");
+          setJobsError(e instanceof Error ? e.message : "Could not load jobs");
           setJobs([]);
         }
       })
       .finally(() => {
-        if (!cancelled) setLoading(false);
+        if (!cancelled) setJobsLoading(false);
       });
-
     return () => {
       cancelled = true;
     };
-  }, [fetchFeed]);
+  }, [fetchJobsFeed]);
 
-  const salaryFiltered = useMemo(() => filterJobsBySalary(jobs, salaryBand), [jobs, salaryBand]);
+  useEffect(() => {
+    let cancelled = false;
+    setWorkersLoading(true);
+    setWorkersError(null);
+    setWorkersOffset(0);
+    fetchWorkersFeed(0, false)
+      .catch((e: unknown) => {
+        if (!cancelled) {
+          setWorkersError(e instanceof Error ? e.message : "Could not load workers");
+          setWorkers([]);
+        }
+      })
+      .finally(() => {
+        if (!cancelled) setWorkersLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [fetchWorkersFeed]);
 
-  const featured = useMemo(() => pickFeaturedJob(salaryFiltered), [salaryFiltered]);
+  const withOwnJobs = useMemo(
+    () => (user?.can_hire ? enrichFeedWithOwnListings(jobs, myListings) : jobs),
+    [jobs, myListings, user?.can_hire],
+  );
+
+  const salaryFilteredJobs = useMemo(() => {
+    if (salaryBand === "all") return withOwnJobs;
+    const passed = filterJobsBySalary(withOwnJobs, salaryBand);
+    const ownRows = withOwnJobs.filter((j) => j.isOwnListing);
+    return enrichFeedWithOwnListings(passed, ownRows);
+  }, [withOwnJobs, salaryBand]);
+
+  const salaryFilteredWorkers = useMemo(
+    () => filterWorkersBySalary(workers, salaryBand),
+    [workers, salaryBand],
+  );
+
+  const featured = useMemo(() => {
+    const candidates = salaryFilteredJobs.filter((j) => !j.isOwnListing);
+    return pickFeaturedJob(candidates.length > 0 ? candidates : salaryFilteredJobs);
+  }, [salaryFilteredJobs]);
 
   const gridJobs = useMemo(() => {
-    if (!featured) return salaryFiltered;
-    return salaryFiltered.filter((j) => j.id !== featured.id);
-  }, [salaryFiltered, featured]);
+    if (!featured) return salaryFilteredJobs;
+    return salaryFilteredJobs.filter((j) => j.id !== featured.id);
+  }, [salaryFilteredJobs, featured]);
 
-  const highlights = useMemo(() => launchHighlights(salaryFiltered), [salaryFiltered]);
+  const highlights = useMemo(() => launchHighlights(salaryFilteredJobs), [salaryFilteredJobs]);
+
+  const displayJobsTotal = useMemo(() => {
+    if (!user?.can_hire) return jobsTotal;
+    const ownOnly = salaryFilteredJobs.filter((j) => j.isOwnListing && !jobs.some((x) => x.id === j.id));
+    return jobsTotal + ownOnly.length;
+  }, [jobsTotal, salaryFilteredJobs, jobs, user?.can_hire]);
 
   function handleContactRecorded(_jobId: string, _limits?: FeedLimits) {}
 
   function clearFilters() {
     setRoleId("");
-    setCityId(ACTIVE_MARKET.defaultCityId);
     setSalaryBand("all");
   }
 
   const hasActiveFilters = Boolean(roleId || salaryBand !== "all");
+  const loading = listingTab === "jobs" ? jobsLoading : workersLoading;
+  const error = listingTab === "jobs" ? jobsError : workersError;
 
-  async function loadMore() {
-    if (!hasMore || loadingMore) return;
-    setLoadingMore(true);
+  async function loadMoreJobs() {
+    if (!jobsHasMore || jobsLoadingMore) return;
+    setJobsLoadingMore(true);
     try {
-      await fetchFeed(offset, true);
+      await fetchJobsFeed(jobsOffset, true);
     } catch (e: unknown) {
-      setError(e instanceof Error ? e.message : "Could not load more");
+      setJobsError(e instanceof Error ? e.message : "Could not load more");
     } finally {
-      setLoadingMore(false);
+      setJobsLoadingMore(false);
     }
   }
 
+  async function loadMoreWorkers() {
+    if (!workersHasMore || workersLoadingMore) return;
+    setWorkersLoadingMore(true);
+    try {
+      await fetchWorkersFeed(workersOffset, true);
+    } catch (e: unknown) {
+      setWorkersError(e instanceof Error ? e.message : "Could not load more");
+    } finally {
+      setWorkersLoadingMore(false);
+    }
+  }
+
+  async function refreshAfterPost() {
+    await Promise.all([
+      fetchJobsFeed(0, false),
+      user?.can_hire
+        ? fetch("/api/auth/activity")
+            .then((r) => r.json())
+            .then((data: ActivityResponse) => setMyListings(data.myListings ?? []))
+        : Promise.resolve(),
+    ]).catch(() => {});
+  }
+
   const { displayName } = ACTIVE_MARKET;
+  const showShell = userLoading && !user;
 
   return (
     <div className="flex h-dvh flex-col overflow-hidden bg-background">
-      {user ? <AppNavbar user={user} cityId={cityId} onCityChange={setCityId} /> : null}
+      {user ? <AppNavbar user={user} cityId={cityId} onCityChange={setCityId} /> : showShell ? (
+        <header className="h-14 shrink-0 animate-pulse border-b border-border bg-surface" />
+      ) : null}
 
       <div className="mx-auto flex min-h-0 w-full max-w-[1400px] flex-1">
         <div className="hidden w-56 shrink-0 overflow-y-auto overscroll-contain border-r border-border xl:w-60 lg:block">
@@ -182,79 +290,85 @@ export function FeedPageContent() {
           <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-4 py-6 pb-24 sm:px-6">
             <header>
               <h1 className="font-serif text-2xl font-bold tracking-tight text-foreground sm:text-3xl">
-                Jobs in {displayName}
+                {listingTab === "jobs" ? `Jobs in ${displayName}` : `Workers in ${displayName}`}
               </h1>
               <p className="mt-1 text-sm text-muted">
                 {loading ? (
-                  "Loading listings…"
+                  "Loading…"
+                ) : listingTab === "jobs" ? (
+                  <>
+                    <span className="font-medium text-foreground">{displayJobsTotal}</span> open roles · Maids, cooks
+                    &amp; shop helpers
+                  </>
                 ) : (
                   <>
-                    <span className="font-medium text-foreground">{total} </span>open roles · Maids, cooks &amp; shop
-                    helpers
+                    <span className="font-medium text-foreground">{workersTotal}</span> workers looking for work
                   </>
                 )}
               </p>
+              <FeedListingTabs active={listingTab} onChange={setListingTab} />
             </header>
 
-            <NearbyHighlights items={highlights} />
+            {listingTab === "jobs" ? <NearbyHighlights items={highlights} /> : null}
 
             {error ? (
-              <div
-                className="mt-6 rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-900"
-                role="alert"
-              >
+              <div className="mt-6 rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-900" role="alert">
                 <p className="font-medium">{error}</p>
                 <p className="mt-2 text-red-800/80">Make sure the backend is running.</p>
               </div>
             ) : null}
 
-            {user && featured && !loading && !error ? (
-              <section className="mt-6" aria-label="Featured job">
-                <p className="mb-3 text-xs font-semibold uppercase tracking-wider text-muted">Featured</p>
-                <FeaturedJobCard job={featured} user={user} onContactRecorded={handleContactRecorded} />
-              </section>
-            ) : null}
+            {listingTab === "jobs" ? (
+              <>
+                {user && featured && !jobsLoading && !jobsError ? (
+                  <section className="mt-6" aria-label="Featured job">
+                    <p className="mb-3 text-xs font-semibold uppercase tracking-wider text-muted">Featured</p>
+                    <FeaturedJobCard job={featured} user={user} onContactRecorded={handleContactRecorded} />
+                  </section>
+                ) : null}
 
-            {loading ? (
-              <ul className="mt-6 grid list-none grid-cols-1 gap-4 sm:grid-cols-2">
-                {Array.from({ length: 4 }).map((_, i) => (
-                  <li key={i}>
-                    <div className="h-full min-h-[19.5rem] animate-pulse rounded-2xl bg-slate-200/60 sm:min-h-[20.5rem]" />
-                  </li>
-                ))}
-              </ul>
-            ) : gridJobs.length === 0 && !error ? (
-              <p className="mt-8 rounded-2xl border border-dashed border-border bg-surface px-4 py-12 text-center text-sm text-muted">
-                No jobs match these filters in {displayName}. Try another role or salary band.
-              </p>
+                {jobsLoading ? (
+                  <CardSkeletonGrid />
+                ) : gridJobs.length === 0 && !jobsError ? (
+                  <EmptyState
+                    message={`No jobs match these filters in ${displayName}. Try another role or salary band.`}
+                  />
+                ) : !user ? (
+                  <CardSkeletonGrid />
+                ) : (
+                  <>
+                    <ul className="mt-6 grid list-none grid-cols-1 gap-4 sm:grid-cols-2 sm:items-stretch">
+                      {gridJobs.map((job) => (
+                        <li key={job.id} className="flex min-h-[19.5rem] min-w-0 sm:min-h-[20.5rem]">
+                          <FeedJobCard job={job} user={user} onContactRecorded={handleContactRecorded} />
+                        </li>
+                      ))}
+                    </ul>
+                    {jobsHasMore ? (
+                      <LoadMoreButton loading={jobsLoadingMore} label="Load more jobs" onClick={loadMoreJobs} />
+                    ) : null}
+                  </>
+                )}
+              </>
+            ) : workersLoading ? (
+              <CardSkeletonGrid />
+            ) : salaryFilteredWorkers.length === 0 && !workersError ? (
+              <EmptyState
+                message={`No workers match these filters in ${displayName}. Try another role or salary band.`}
+              />
             ) : !user ? (
-              <ul className="mt-6 grid list-none grid-cols-1 gap-4 sm:grid-cols-2">
-                {Array.from({ length: 4 }).map((_, i) => (
-                  <li key={i}>
-                    <div className="h-full min-h-[19.5rem] animate-pulse rounded-2xl bg-slate-200/60 sm:min-h-[20.5rem]" />
-                  </li>
-                ))}
-              </ul>
+              <CardSkeletonGrid />
             ) : (
               <>
                 <ul className="mt-6 grid list-none grid-cols-1 gap-4 sm:grid-cols-2 sm:items-stretch">
-                  {gridJobs.map((job) => (
-                    <li key={job.id} className="flex min-h-[19.5rem] min-w-0 sm:min-h-[20.5rem]">
-                      <FeedJobCard job={job} user={user} onContactRecorded={handleContactRecorded} />
+                  {salaryFilteredWorkers.map((worker) => (
+                    <li key={worker.id} className="flex min-h-[19.5rem] min-w-0 sm:min-h-[20.5rem]">
+                      <WorkerFeedCard worker={worker} user={user} />
                     </li>
                   ))}
                 </ul>
-                {hasMore ? (
-                  <div className="mt-8 flex justify-center">
-                    <button
-                      type="button"
-                      onClick={loadMore}
-                      disabled={loadingMore}
-                      className="min-h-11 rounded-full border border-border bg-surface px-8 text-sm font-semibold text-foreground transition hover:bg-slate-50 disabled:opacity-50"
-                    >
-                      {loadingMore ? "Loading…" : "Load more jobs"}
-                    </button>
-                  </div>
+                {workersHasMore ? (
+                  <LoadMoreButton loading={workersLoadingMore} label="Load more workers" onClick={loadMoreWorkers} />
                 ) : null}
               </>
             )}
@@ -262,17 +376,60 @@ export function FeedPageContent() {
         </main>
       </div>
 
-      {user && isRecruiterView(user) ? (
+      {user && isRecruiterView(user) && listingTab === "jobs" ? (
         <>
           <PostJobFab onClick={() => setPostJobOpen(true)} />
           <PostJobModal
             open={postJobOpen}
             cityId={cityId}
             onClose={() => setPostJobOpen(false)}
-            onSuccess={() => fetchFeed(0, false).catch(() => {})}
+            onSuccess={() => refreshAfterPost()}
           />
         </>
       ) : null}
+    </div>
+  );
+}
+
+function CardSkeletonGrid() {
+  return (
+    <ul className="mt-6 grid list-none grid-cols-1 gap-4 sm:grid-cols-2">
+      {Array.from({ length: 4 }).map((_, i) => (
+        <li key={i}>
+          <div className="h-full min-h-[19.5rem] animate-pulse rounded-2xl bg-slate-200/60 sm:min-h-[20.5rem]" />
+        </li>
+      ))}
+    </ul>
+  );
+}
+
+function EmptyState({ message }: { message: string }) {
+  return (
+    <p className="mt-8 rounded-2xl border border-dashed border-border bg-surface px-4 py-12 text-center text-sm text-muted">
+      {message}
+    </p>
+  );
+}
+
+function LoadMoreButton({
+  loading,
+  label,
+  onClick,
+}: {
+  loading: boolean;
+  label: string;
+  onClick: () => void;
+}) {
+  return (
+    <div className="mt-8 flex justify-center">
+      <button
+        type="button"
+        onClick={onClick}
+        disabled={loading}
+        className="min-h-11 rounded-full border border-border bg-surface px-8 text-sm font-semibold text-foreground transition hover:bg-slate-50 disabled:opacity-50"
+      >
+        {loading ? "Loading…" : label}
+      </button>
     </div>
   );
 }

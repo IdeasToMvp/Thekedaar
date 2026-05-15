@@ -1,108 +1,86 @@
 "use client";
 
-import Link from "next/link";
-import { useEffect, useState } from "react";
-import type { MeResponse, MeUser } from "@/lib/auth/types";
+import { useCallback, useEffect, useState } from "react";
 import type { ActivityResponse } from "@/lib/jobs/activity";
 import type { FeedJob } from "@/lib/jobs/types";
 import { isRecruiterView } from "@/lib/jobs/viewerRole";
+import { useFeedUser } from "./FeedUserProvider";
 import { AppNavbar } from "./AppNavbar";
 import { MyListingsSection } from "./MyListingsSection";
 import { PostJobFab } from "./PostJobFab";
 import { PostJobModal } from "./PostJobModal";
-import { ACTIVE_MARKET } from "@/lib/launch";
 
 export function MyListingsPageContent() {
-  const [user, setUser] = useState<MeUser | null>(null);
+  const { user, userLoading, cityId, setCityId } = useFeedUser();
   const [listings, setListings] = useState<FeedJob[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [listingsLoading, setListingsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [cityId, setCityId] = useState(ACTIVE_MARKET.defaultCityId);
   const [postJobOpen, setPostJobOpen] = useState(false);
 
-  async function refreshListings() {
-    const actRes = await fetch("/api/auth/activity");
-    const actData = (await actRes.json()) as ActivityResponse;
-    if (actRes.ok) setListings(actData.myListings ?? []);
-  }
-
-  useEffect(() => {
-    let cancelled = false;
-    Promise.all([fetch("/api/auth/me"), fetch("/api/auth/activity")])
-      .then(async ([meRes, actRes]) => {
-        const meData = (await meRes.json()) as MeResponse;
-        const actData = (await actRes.json()) as ActivityResponse;
-        if (!cancelled) {
-          if (meData?.user) {
-            const u = { ...meData.user };
-            if (meData.recruiter_profile) u.can_hire = true;
-            setUser(u);
-          }
-          if (!actRes.ok) {
-            setError(actData.error || "Could not load your listings");
-            setListings([]);
-          } else {
-            setListings(actData.myListings ?? []);
-          }
-        }
-      })
-      .catch(() => {
-        if (!cancelled) setError("Could not load your listings");
-      })
-      .finally(() => {
-        if (!cancelled) setLoading(false);
-      });
-    return () => {
-      cancelled = true;
-    };
+  const loadListings = useCallback(async () => {
+    setListingsLoading(true);
+    setError(null);
+    try {
+      const actRes = await fetch("/api/auth/activity");
+      const actData = (await actRes.json()) as ActivityResponse;
+      if (!actRes.ok) {
+        setError(actData.error || "Could not load your listings");
+        setListings([]);
+        return;
+      }
+      setListings(actData.myListings ?? []);
+    } catch {
+      setError("Could not load your listings");
+      setListings([]);
+    } finally {
+      setListingsLoading(false);
+    }
   }, []);
 
-  if (!user) {
-    return (
-      <div className="flex min-h-dvh items-center justify-center bg-background">
-        <p className="text-sm text-muted">Loading…</p>
-      </div>
-    );
-  }
+  useEffect(() => {
+    if (!user?.can_hire) {
+      setListings([]);
+      setListingsLoading(false);
+      return;
+    }
+    loadListings();
+  }, [user?.can_hire, user?.id, loadListings]);
 
-  if (!user.can_hire) {
-    return (
-      <div className="flex min-h-dvh flex-col bg-background">
-        <AppNavbar user={user} cityId={cityId} onCityChange={setCityId} />
-        <main className="mx-auto max-w-3xl px-4 py-12 text-center sm:px-6">
-          <p className="text-muted">My listings are available for employer accounts.</p>
-          <Link href="/feed" className="mt-4 inline-block text-sm font-semibold text-brand hover:underline">
-            Back to job feed
-          </Link>
-        </main>
-      </div>
-    );
-  }
+  const showNavbar = user || userLoading;
 
   return (
-    <div className="flex min-h-dvh flex-col overflow-hidden bg-background">
-      <AppNavbar user={user} cityId={cityId} onCityChange={setCityId} />
+    <div className="flex h-dvh flex-col overflow-hidden bg-background">
+      {showNavbar && user ? (
+        <AppNavbar user={user} cityId={cityId} onCityChange={setCityId} />
+      ) : showNavbar ? (
+        <header className="h-14 shrink-0 animate-pulse border-b border-border bg-surface" />
+      ) : null}
 
       <main className="min-h-0 flex-1 overflow-y-auto">
-        <div className="mx-auto max-w-[1400px] px-4 py-6 sm:px-6">
-          <Link href="/feed" className="text-sm font-medium text-brand hover:underline">
-            ← Back to find jobs
-          </Link>
-          {error ? (
-            <p className="mt-4 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">{error}</p>
-          ) : null}
-          <MyListingsSection listings={listings} loading={loading} />
+        <div className="mx-auto max-w-[1400px] px-4 py-6 pb-24 sm:px-6">
+          {!userLoading && user && !user.can_hire ? (
+            <p className="rounded-xl border border-dashed border-border bg-surface px-4 py-12 text-center text-sm text-muted">
+              My listings are available for employer accounts. Post a job or complete hiring setup on WhatsApp.
+            </p>
+          ) : (
+            <>
+              {error ? (
+                <p className="mb-4 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">{error}</p>
+              ) : null}
+              <MyListingsSection listings={listings} loading={listingsLoading || userLoading} />
+            </>
+          )}
         </div>
       </main>
 
-      {isRecruiterView(user) ? (
+      {user && isRecruiterView(user) ? (
         <>
           <PostJobFab onClick={() => setPostJobOpen(true)} />
           <PostJobModal
             open={postJobOpen}
             cityId={cityId}
             onClose={() => setPostJobOpen(false)}
-            onSuccess={() => refreshListings().catch(() => {})}
+            onSuccess={() => loadListings()}
           />
         </>
       ) : null}

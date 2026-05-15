@@ -1,3 +1,4 @@
+import Link from "next/link";
 import type { FeedJob, FeedLimits } from "@/lib/jobs/types";
 import type { MeUser } from "@/lib/auth/types";
 import { formatSalary } from "@/lib/formatRelativeTime";
@@ -17,8 +18,12 @@ type Props = {
 };
 
 export function FeaturedJobCard({ job, user, onContactRecorded }: Props) {
+  const own = Boolean(job.isOwnListing);
+
   return (
-    <article className="overflow-hidden rounded-2xl border border-border bg-surface shadow-sm">
+    <article
+      className={`overflow-hidden rounded-2xl border bg-surface shadow-sm ${own ? "border-brand/40 ring-1 ring-brand/20" : "border-border"}`}
+    >
       <div className="flex flex-col md:flex-row">
         <div
           className={`flex min-h-[140px] items-center justify-center bg-gradient-to-br md:w-2/5 ${gradientFor(job.category)}`}
@@ -29,7 +34,11 @@ export function FeaturedJobCard({ job, user, onContactRecorded }: Props) {
         </div>
         <div className="flex flex-1 flex-col p-5 md:p-6">
           <div className="flex flex-wrap items-start justify-between gap-2">
-            {job.urgency === "high" ? (
+            {own ? (
+              <span className="rounded-md bg-brand/15 px-2 py-0.5 text-xs font-bold uppercase tracking-wide text-brand-dark">
+                Your listing
+              </span>
+            ) : job.urgency === "high" ? (
               <span className="rounded-md bg-amber-500 px-2 py-0.5 text-xs font-bold uppercase tracking-wide text-white">
                 Urgent
               </span>
@@ -44,11 +53,20 @@ export function FeaturedJobCard({ job, user, onContactRecorded }: Props) {
           <p className="mt-1 text-sm text-muted">
             {job.city}
             <span className="mx-1">·</span>
-            {job.employerDisplayName}
+            {own ? "You" : job.employerDisplayName}
           </p>
           <p className="mt-3 line-clamp-2 text-sm leading-relaxed text-muted">{job.description}</p>
           <div className="mt-4">
-            <JobCardActions job={job} user={user} layout="featured" onContactRecorded={onContactRecorded} />
+            {own ? (
+              <Link
+                href="/feed/my-listings"
+                className="inline-flex min-h-11 items-center justify-center rounded-lg border border-brand bg-brand/5 px-6 text-sm font-semibold text-brand-dark transition hover:bg-brand/10"
+              >
+                Manage in My Listings
+              </Link>
+            ) : (
+              <JobCardActions job={job} user={user} layout="featured" onContactRecorded={onContactRecorded} />
+            )}
           </div>
         </div>
       </div>

@@ -4,6 +4,7 @@ import dotenv from "dotenv";
 import webhookRoutes from "./routes/webhook.routes";
 import authRoutes from "./routes/auth.routes";
 import jobsRoutes from "./routes/jobs.routes";
+import workersRoutes from "./routes/workers.routes";
 
 dotenv.config();
 
@@ -21,6 +22,7 @@ app.get("/", (_, res) => {
 app.use("/webhooks", webhookRoutes);
 app.use("/api/auth", authRoutes);
 app.use("/api/jobs", jobsRoutes);
+app.use("/api/workers", workersRoutes);
 
 const PORT = process.env.PORT || 5000;
 

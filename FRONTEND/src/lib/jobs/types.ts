@@ -13,6 +13,8 @@ export type FeedJob = {
   urgency: JobUrgency;
   posterSubscription: { plan: string; features: Record<string, boolean> };
   contactWaDigits?: string;
+  /** Set when the signed-in user posted this job */
+  isOwnListing?: boolean;
 };
 
 export type FeedLimits = {

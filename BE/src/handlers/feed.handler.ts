@@ -42,6 +42,7 @@ export async function handleFeedGet(req: Request, res: Response): Promise<void> 
       sort,
       offset,
       limit,
+      viewerId: session?.sub,
     });
     const limits = session ? await buildFeedLimits(session.sub) : null;
     const [cities, categories] = await Promise.all([distinctJobCities(), distinctJobCategories()]);
