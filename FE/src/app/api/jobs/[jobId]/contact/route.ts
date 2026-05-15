@@ -1,0 +1,35 @@
+import { cookies } from "next/headers";
+import { NextResponse } from "next/server";
+import { beApiUrl } from "@/lib/beApi";
+
+export const dynamic = "force-dynamic";
+
+export async function POST(req: Request, ctx: { params: Promise<{ jobId: string }> }) {
+
+  const cookieName = process.env.SESSION_COOKIE_NAME || "tk_session";
+  const token = (await cookies()).get(cookieName)?.value;
+  if (!token) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
+  const { jobId } = await ctx.params;
+  const body = await req.json().catch(() => ({}));
+
+  const url = beApiUrl(`jobs/${jobId}/contact`);
+  if (!url) {
+    return NextResponse.json({ error: "Missing BE_API_BASE_URL" }, { status: 500 });
+  }
+
+  const resp = await fetch(url, {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${token}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify(body),
+    cache: "no-store",
+  });
+
+  const data = await resp.json().catch(() => ({}));
+  return NextResponse.json(data, { status: resp.status });
+}

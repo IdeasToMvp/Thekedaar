@@ -58,10 +58,20 @@ export function SiteShell({ children }: { children: React.ReactNode }) {
                 <Link
                   href="/app/profile"
                   className={`rounded-full px-3 py-1.5 font-medium transition ${
-                    pathname === "/app/profile" ? "bg-emerald-100 text-emerald-900" : "text-slate-700 hover:bg-slate-100"
+                    pathname === "/app/profile" || pathname?.startsWith("/app/profile/")
+                      ? "bg-emerald-100 text-emerald-900"
+                      : "text-slate-700 hover:bg-slate-100"
                   }`}
                 >
                   Profile
+                </Link>
+                <Link
+                  href="/app/plan"
+                  className={`rounded-full px-3 py-1.5 font-medium transition ${
+                    pathname === "/app/plan" ? "bg-emerald-100 text-emerald-900" : "text-slate-700 hover:bg-slate-100"
+                  }`}
+                >
+                  Plan
                 </Link>
               </>
             ) : (

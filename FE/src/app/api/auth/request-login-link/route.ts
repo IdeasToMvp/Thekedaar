@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { beApiUrl } from "@/lib/beApi";
 
 export async function POST(req: Request) {
   const body = await req.json().catch(() => null);
@@ -7,12 +8,12 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "Invalid request" }, { status: 400 });
   }
 
-  const beBase = process.env.BE_API_BASE_URL;
-  if (!beBase) {
+  const url = beApiUrl("auth/request-login-link");
+  if (!url) {
     return NextResponse.json({ error: "Missing BE_API_BASE_URL" }, { status: 500 });
   }
 
-  const resp = await fetch(`${beBase.replace(/\/$/, "")}/api/auth/request-login-link`, {
+  const resp = await fetch(url, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ phone }),

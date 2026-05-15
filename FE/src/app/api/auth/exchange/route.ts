@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { beApiUrl } from "@/lib/beApi";
 
 export async function POST(req: Request) {
   const body = await req.json().catch(() => null);
@@ -7,14 +8,14 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "Invalid request" }, { status: 400 });
   }
 
-  const beBase = process.env.BE_API_BASE_URL;
-  if (!beBase) {
+  const url = beApiUrl("auth/exchange");
+  if (!url) {
     return NextResponse.json({ error: "Missing BE_API_BASE_URL" }, { status: 500 });
   }
 
   const cookieName = process.env.SESSION_COOKIE_NAME || "tk_session";
 
-  const resp = await fetch(`${beBase.replace(/\/$/, "")}/api/auth/exchange`, {
+  const resp = await fetch(url, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ token }),

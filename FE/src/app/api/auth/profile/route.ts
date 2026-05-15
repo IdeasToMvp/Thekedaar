@@ -1,9 +1,10 @@
 import { cookies } from "next/headers";
 import { NextResponse } from "next/server";
+import { beApiUrl } from "@/lib/beApi";
 
 export async function PATCH(req: Request) {
-  const beBase = process.env.BE_API_BASE_URL;
-  if (!beBase) {
+  const url = beApiUrl("auth/profile");
+  if (!url) {
     return NextResponse.json({ error: "Missing BE_API_BASE_URL" }, { status: 500 });
   }
 
@@ -15,7 +16,7 @@ export async function PATCH(req: Request) {
 
   const body = await req.json().catch(() => ({}));
 
-  const resp = await fetch(`${beBase.replace(/\/$/, "")}/api/auth/profile`, {
+  const resp = await fetch(url, {
     method: "PATCH",
     headers: {
       "Content-Type": "application/json",

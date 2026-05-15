@@ -2,8 +2,10 @@ import { cookies } from "next/headers";
 import { NextResponse } from "next/server";
 import { beApiUrl } from "@/lib/beApi";
 
+export const dynamic = "force-dynamic";
+
 export async function GET() {
-  const url = beApiUrl("auth/me");
+  const url = beApiUrl("auth/activity");
   if (!url) {
     return NextResponse.json({ error: "Missing BE_API_BASE_URL" }, { status: 500 });
   }
@@ -11,18 +13,14 @@ export async function GET() {
   const cookieName = process.env.SESSION_COOKIE_NAME || "tk_session";
   const token = (await cookies()).get(cookieName)?.value;
   if (!token) {
-    return NextResponse.json({ user: null }, { status: 401 });
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
   const resp = await fetch(url, {
-    method: "GET",
     headers: { Authorization: `Bearer ${token}` },
     cache: "no-store",
   });
 
   const data = await resp.json().catch(() => ({}));
-  if (!resp.ok) {
-    return NextResponse.json(data, { status: resp.status });
-  }
-  return NextResponse.json(data);
+  return NextResponse.json(data, { status: resp.status });
 }

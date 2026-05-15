@@ -1,8 +1,9 @@
+import type { FeedLimits } from "./planLimits";
+
 export type SubscriptionPlan = "free" | "basic" | "pro";
 
 export type SubscriptionSnapshot = {
   plan: SubscriptionPlan;
-  /** Future: server-driven toggles e.g. `priority_apply`, `see_salary`. */
   features: Record<string, boolean>;
 };
 
@@ -20,16 +21,13 @@ export function normalizeSubscriptionFromApi(raw: unknown): SubscriptionSnapshot
   return { plan: p, features: f };
 }
 
-/** Hook for later: hide premium CTAs, cap applies per day, etc. */
-export function viewerCanUseWhatsApply(_viewer: SubscriptionSnapshot, _job: { posterSubscription: SubscriptionSnapshot }): {
-  apply: boolean;
-  whatsapp: boolean;
-} {
-  return { apply: true, whatsapp: true };
-}
-
 export function posterListingLabel(poster: SubscriptionSnapshot): string | null {
   if (poster.plan === "pro") return "Pro";
   if (poster.plan === "basic") return "Plus";
   return null;
+}
+
+export function canContactMoreJobs(limits: FeedLimits | null): boolean {
+  if (!limits) return true;
+  return limits.feedContacts.remaining > 0;
 }

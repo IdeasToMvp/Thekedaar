@@ -1,5 +1,6 @@
 import { Router } from "express";
 import { z } from "zod";
+import { handleFeedGet } from "../handlers/feed.handler";
 import { exchangeMagicLinkToken, signSessionJwt, sessionClaimsForUserId } from "../services/magicLink.service";
 import { requestLoginLinkViaWhatsApp } from "../services/requestLoginLink.service";
 import { getUserWithProfiles, updateUserProfile, type UserRow } from "../services/user.service";
@@ -7,6 +8,11 @@ import { allowRateLimit } from "../utils/rateLimit";
 import { normalizePhoneForWhatsApp } from "../utils/phone";
 import { requireSession, type RequestWithSession } from "../middleware/requireSession";
 import { subscriptionPayload } from "../utils/subscription";
+import {
+  buildFeedLimits,
+  listRecruiterOwnListings,
+  listUserFeedContactActivity,
+} from "../services/jobs.service";
 
 const router = Router();
 
@@ -55,6 +61,30 @@ router.post("/exchange", async (req, res) => {
       msg.includes("used") ? 409 :
       msg.includes("Invalid") ? 401 : 400;
     return res.status(status).json({ error: msg });
+  }
+});
+
+router.get("/feed", requireSession, handleFeedGet);
+
+router.get("/activity", requireSession, async (req, res) => {
+  const session = (req as RequestWithSession).session;
+  try {
+    const [contacts, limits, listings] = await Promise.all([
+      listUserFeedContactActivity(session.sub),
+      buildFeedLimits(session.sub),
+      listRecruiterOwnListings(session.sub),
+    ]);
+    const applied = contacts.filter((c) => c.action === "apply" || c.action === "whatsapp");
+    const shortlisted = contacts.filter((c) => c.action === "hire" || c.action === "whatsapp");
+    return res.status(200).json({
+      applied,
+      shortlisted,
+      myListings: listings,
+      limits,
+    });
+  } catch (e: unknown) {
+    const msg = e instanceof Error ? e.message : "Activity error";
+    return res.status(500).json({ error: msg });
   }
 });
 
