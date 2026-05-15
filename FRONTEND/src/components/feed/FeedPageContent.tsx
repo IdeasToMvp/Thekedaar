@@ -179,7 +179,11 @@ export function FeedPageContent() {
 
   const highlights = useMemo(() => launchHighlights(salaryFilteredJobs), [salaryFilteredJobs]);
 
-  function handleContactRecorded(_jobId: string, _limits?: FeedLimits) {}
+  const handleApplicationUpdated = useCallback((jobId: string, status: ApplicationStatus) => {
+    setJobs((prev) =>
+      prev.map((j) => (j.id === jobId ? { ...j, applicationStatus: status } : j)),
+    );
+  }, []);
 
   function clearFilters() {
     setRoleId("");

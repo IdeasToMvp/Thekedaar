@@ -46,6 +46,11 @@ function waPhone(digits: string): string {
   return d.length >= 10 ? d : "";
 }
 
+function withoutEmployerContact(job: JobFeedApiJob): JobFeedApiJob {
+  const { contactWaDigits: _wa, ...rest } = job;
+  return rest;
+}
+
 async function fetchRecruiter(recruiterId: string) {
   const u = await getUserById(recruiterId);
   if (!u) return null;
@@ -190,7 +195,7 @@ export async function submitJobApplication(input: {
     status,
     appliedAt,
     updatedAt,
-    job: { ...jobApi, contactWaDigits: undefined } as JobFeedApiJob,
+    job: withoutEmployerContact(jobApi),
   };
 
   return { application, created };
@@ -253,7 +258,7 @@ export async function listWorkerApplications(workerId: string): Promise<JobAppli
         status,
         appliedAt: r.created_at,
         updatedAt: r.updated_at,
-        job: { ...jobApi, contactWaDigits: undefined } as JobFeedApiJob,
+        job: withoutEmployerContact(jobApi),
       };
       if (status === "approved" && rec) {
         item.employerContact = {

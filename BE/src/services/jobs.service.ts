@@ -51,7 +51,7 @@ export type JobFeedApiJob = {
   requiredDocuments?: string[];
   experienceYearsRequired?: number | null;
   posterSubscription: { plan: BillingPlan; features: Record<string, boolean> };
-  contactWaDigits: string;
+  contactWaDigits?: string;
   isOwnListing?: boolean;
   applicationStatus?: "pending" | "approved" | "rejected" | null;
 };

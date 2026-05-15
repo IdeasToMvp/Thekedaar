@@ -22,8 +22,10 @@ export type FeedJob = {
   maxAge?: number | null;
   preferredGender?: string | null;
   requiredDocuments?: string[];
+  experienceYearsRequired?: number | null;
   posterSubscription: { plan: string; features: Record<string, boolean> };
   contactWaDigits?: string;
+  applicationStatus?: ApplicationStatus | null;
   /** Set when the signed-in user posted this job */
   isOwnListing?: boolean;
 };

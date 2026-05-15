@@ -90,7 +90,7 @@ const emptyForm = (defaultCityId: string): JobListingFormValues => ({
 
 export function JobListingModal({ open, cityId, job, onClose, onSuccess }: Props) {
   const isEdit = Boolean(job);
-  const [form, setForm] = useState<JobListingFormValues>(emptyForm);
+  const [form, setForm] = useState<JobListingFormValues>(() => emptyForm(cityId));
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
