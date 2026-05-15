@@ -16,6 +16,7 @@ export function LoginForm({ returnTo, intent, jobId }: Props) {
   const [phone, setPhone] = useState("");
   const [loading, setLoading] = useState(false);
   const [done, setDone] = useState(false);
+  const [devLoginUrl, setDevLoginUrl] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   const whatsappUrl = process.env.NEXT_PUBLIC_WHATSAPP_URL?.trim();
@@ -41,7 +42,14 @@ export function LoginForm({ returnTo, intent, jobId }: Props) {
         return;
       }
       if (!resp.ok) {
-        setError(typeof data?.error === "string" ? data.error : "Something went wrong.");
+        const msg = typeof data?.error === "string" ? data.error : "Something went wrong.";
+        if (msg.includes("190") || msg.toLowerCase().includes("authentication error")) {
+          setError(
+            `${msg} Fix WHATSAPP_ACCESS_TOKEN in the backend .env (Meta Developer Console → your app → WhatsApp → API setup → generate a new token).`,
+          );
+        } else {
+          setError(msg);
+        }
         return;
       }
       if (data?.sent === false && data?.reason === "not_registered") {
@@ -53,6 +61,9 @@ export function LoginForm({ returnTo, intent, jobId }: Props) {
       if (data?.sent !== true) {
         setError("We could not send the link. Check your number or try again in a few minutes.");
         return;
+      }
+      if (typeof data?.devLoginUrl === "string") {
+        setDevLoginUrl(data.devLoginUrl);
       }
       setDone(true);
     } finally {
@@ -67,11 +78,21 @@ export function LoginForm({ returnTo, intent, jobId }: Props) {
           className="rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm leading-relaxed text-emerald-950"
           role="status"
         >
-          We sent a sign-in link on WhatsApp. Open WhatsApp and tap the link to continue.
+          {devLoginUrl
+            ? "WhatsApp is not configured — use the dev sign-in link below (local only)."
+            : "We sent a sign-in link on WhatsApp. Open WhatsApp and tap the link to continue."}
         </div>
+        {devLoginUrl ? (
+          <Link
+            href={devLoginUrl}
+            className="flex min-h-12 w-full items-center justify-center rounded-xl bg-brand text-sm font-semibold text-white transition hover:bg-brand-dark"
+          >
+            Open sign-in link
+          </Link>
+        ) : null}
         <Link
           href={returnTo.startsWith("/") ? returnTo : "/"}
-          className="flex min-h-12 w-full items-center justify-center rounded-xl bg-brand text-sm font-semibold text-white transition hover:bg-brand-dark"
+          className="flex min-h-12 w-full items-center justify-center rounded-xl border border-border bg-white px-6 text-sm font-semibold text-foreground transition hover:bg-slate-50"
         >
           Back to jobs
         </Link>

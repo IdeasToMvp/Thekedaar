@@ -15,12 +15,21 @@ export type FeedJob = {
   contactWaDigits?: string;
 };
 
+export type FeedLimits = {
+  plan: string;
+  feedContacts: { used: number; max: number; remaining: number };
+  jobListings: { used: number; max: number; scope: "lifetime" | "month" } | null;
+  contactedJobIds: string[];
+};
+
 export type FeedResponse = {
   jobs: FeedJob[];
   total: number;
   offset: number;
   limit: number;
   hasMore: boolean;
+  authenticated?: boolean;
+  limits?: FeedLimits | null;
   meta?: { cities: string[]; categories: string[] };
   error?: string;
   hint?: string;

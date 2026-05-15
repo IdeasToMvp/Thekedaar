@@ -4,7 +4,7 @@ import { sendWhatsAppText } from "./whatsapp.service";
 import { normalizePhoneForWhatsApp } from "../utils/phone";
 
 export type RequestLoginLinkResult =
-  | { sent: true; messageId?: string }
+  | { sent: true; messageId?: string; devLoginUrl?: string }
   | { sent: false; reason: "not_registered" };
 
 function webBaseUrl(): string | null {
@@ -12,6 +12,11 @@ function webBaseUrl(): string | null {
   if (!raw) return null;
   const host = raw.replace(/^https?:\/\//, "").replace(/\/$/, "");
   return `https://${host}`;
+}
+
+function devLoginLinkExposeEnabled(): boolean {
+  if (process.env.NODE_ENV === "production") return false;
+  return process.env.EXPOSE_LOGIN_LINK_IN_DEV === "true";
 }
 
 export async function requestLoginLinkViaWhatsApp(rawPhone: string): Promise<RequestLoginLinkResult> {
@@ -40,7 +45,16 @@ export async function requestLoginLinkViaWhatsApp(rawPhone: string): Promise<Req
     url +
     "\n\nIf you didn’t ask for this, ignore this message.";
 
-  const { messageId } = await sendWhatsAppText(normalized, body);
-  console.info(`request-login-link: sent to ${normalized.slice(0, 4)}*** messageId=${messageId ?? "?"}`);
-  return { sent: true, messageId };
+  try {
+    const { messageId } = await sendWhatsAppText(normalized, body);
+    console.info(`request-login-link: sent to ${normalized.slice(0, 4)}*** messageId=${messageId ?? "?"}`);
+    return { sent: true, messageId };
+  } catch (e: unknown) {
+    if (devLoginLinkExposeEnabled()) {
+      console.warn("request-login-link: WhatsApp send failed; exposing dev login URL:", url);
+      console.warn(e);
+      return { sent: true, devLoginUrl: url };
+    }
+    throw e;
+  }
 }

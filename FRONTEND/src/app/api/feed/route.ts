@@ -1,3 +1,4 @@
+import { cookies } from "next/headers";
 import { NextRequest, NextResponse } from "next/server";
 import { beApiUrl } from "@/lib/beApi";
 
@@ -9,11 +10,15 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: "Missing BE_API_BASE_URL" }, { status: 500 });
   }
 
+  const cookieName = process.env.SESSION_COOKIE_NAME || "tk_session";
+  const token = (await cookies()).get(cookieName)?.value;
+
   const qs = req.nextUrl.searchParams.toString();
   const target = qs ? `${url}?${qs}` : url;
+  const headers: HeadersInit = token ? { Authorization: `Bearer ${token}` } : {};
 
   try {
-    const resp = await fetch(target, { cache: "no-store" });
+    const resp = await fetch(target, { headers, cache: "no-store" });
     const data = await resp.json().catch(() => ({}));
     return NextResponse.json(data, {
       status: resp.status,

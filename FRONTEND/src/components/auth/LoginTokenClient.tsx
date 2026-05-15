@@ -10,7 +10,7 @@ export function LoginTokenClient() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const token = typeof params.token === "string" ? params.token : "";
-  const returnTo = searchParams.get("returnTo") || "/";
+  const returnTo = searchParams.get("returnTo") || "/feed";
 
   const [status, setStatus] = useState<"loading" | "ok" | "error">("loading");
   const [message, setMessage] = useState("Signing you in…");

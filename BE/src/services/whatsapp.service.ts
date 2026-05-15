@@ -46,6 +46,12 @@ export async function sendWhatsAppText(to: string, body: string): Promise<WhatsA
         );
       }
 
+      if (code === 190 || detail.toLowerCase().includes("authentication error")) {
+        throw new Error(
+          "WhatsApp access token is invalid or expired (error 190). In Meta Developer Console, generate a new token for your app with whatsapp_business_messaging, and update BE .env WHATSAPP_ACCESS_TOKEN and WHATSAPP_PHONE_NUMBER_ID.",
+        );
+      }
+
       throw new Error(`WhatsApp API error${code != null ? ` (${code})` : ""}: ${detail}`);
     }
     throw e;

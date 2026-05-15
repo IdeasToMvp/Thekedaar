@@ -7,7 +7,7 @@ type Props = {
 
 export default async function LoginPage({ searchParams }: Props) {
   const params = await searchParams;
-  const returnTo = typeof params.returnTo === "string" ? params.returnTo : "/";
+  const returnTo = typeof params.returnTo === "string" ? params.returnTo : "/feed";
   const intent = params.intent === "apply" || params.intent === "hire" ? params.intent : undefined;
   const jobId = typeof params.jobId === "string" ? params.jobId : undefined;
 
