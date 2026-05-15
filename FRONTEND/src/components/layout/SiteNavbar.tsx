@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { ThekedaarLogo } from "@/components/brand/ThekedaarLogo";
-import { signInHref } from "@/lib/signIn";
+import { SignInLink } from "@/components/auth/SignInLink";
 
 const jobsLinkClass =
   "inline-flex rounded-full border border-border px-4 py-2 text-sm font-semibold text-foreground transition hover:bg-slate-50";
@@ -36,9 +36,7 @@ export function SiteNavbar({ hideSignIn = false }: Props) {
               Open jobs
             </Link>
           ) : (
-            <Link href={signInHref} className={signInLinkClass}>
-              Sign in
-            </Link>
+            <SignInLink className={signInLinkClass}>Sign in</SignInLink>
           )}
         </div>
       </div>

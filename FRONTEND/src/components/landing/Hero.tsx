@@ -1,6 +1,6 @@
 import Image from "next/image";
 import Link from "next/link";
-import { signInHref } from "@/lib/signIn";
+import { SignInLink } from "@/components/auth/SignInLink";
 
 export function Hero() {
   return (
@@ -41,12 +41,9 @@ export function Hero() {
           >
             See open jobs
           </a>
-          <Link
-            href={signInHref}
-            className="inline-flex h-12 items-center justify-center rounded-full border-2 border-border/80 bg-white/90 px-6 text-sm font-semibold text-foreground shadow-sm backdrop-blur-sm transition hover:bg-white"
-          >
+          <SignInLink className="inline-flex h-12 items-center justify-center rounded-full border-2 border-border/80 bg-white/90 px-6 text-sm font-semibold text-foreground shadow-sm backdrop-blur-sm transition hover:bg-white">
             Sign in
-          </Link>
+          </SignInLink>
         </div>
         <dl className="mt-10 grid max-w-lg grid-cols-3 gap-4 border-t border-border/60 pt-8 sm:mt-12">
           <div>

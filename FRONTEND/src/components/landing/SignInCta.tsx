@@ -1,5 +1,4 @@
-import Link from "next/link";
-import { signInHref } from "@/lib/signIn";
+import { SignInLink } from "@/components/auth/SignInLink";
 
 export function SignInCta() {
   return (
@@ -11,12 +10,9 @@ export function SignInCta() {
             Sign in with the WhatsApp link we send you — no password on the website.
           </p>
         </div>
-        <Link
-          href={signInHref}
-          className="inline-flex min-h-11 w-full shrink-0 items-center justify-center rounded-full bg-brand px-6 text-sm font-semibold text-white transition hover:bg-brand-dark sm:w-auto"
-        >
+        <SignInLink className="inline-flex min-h-11 w-full shrink-0 items-center justify-center rounded-full bg-brand px-6 text-sm font-semibold text-white transition hover:bg-brand-dark sm:w-auto">
           Sign in
-        </Link>
+        </SignInLink>
       </div>
     </section>
   );

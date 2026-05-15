@@ -1,0 +1,43 @@
+"use client";
+
+import Link from "next/link";
+import { useEffect, useState } from "react";
+import { FEED_PATH, loginUrl, type LoginQuery } from "@/lib/signIn";
+
+type Props = LoginQuery & {
+  className?: string;
+  children: React.ReactNode;
+};
+
+/** Sends logged-in users to /feed; others to /login (with optional job context). */
+export function SignInLink({ className, children, returnTo, intent, jobId }: Props) {
+  const [href, setHref] = useState(() =>
+    loginUrl({ returnTo: returnTo ?? FEED_PATH, intent, jobId }),
+  );
+
+  useEffect(() => {
+    let cancelled = false;
+    fetch("/api/auth/me")
+      .then((r) => (r.ok ? r.json() : null))
+      .then((data) => {
+        if (cancelled) return;
+        if (data?.user) {
+          const dest =
+            returnTo && returnTo.startsWith("/") && !returnTo.startsWith("/login")
+              ? returnTo
+              : FEED_PATH;
+          setHref(dest);
+        }
+      })
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
+  }, [returnTo, intent, jobId]);
+
+  return (
+    <Link href={href} className={className}>
+      {children}
+    </Link>
+  );
+}
