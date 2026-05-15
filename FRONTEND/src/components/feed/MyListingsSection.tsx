@@ -42,7 +42,7 @@ export function MyListingsSection({ listings, loading, compact = false }: Props)
         </ul>
       ) : preview.length === 0 ? (
         <p className="mt-4 rounded-xl border border-dashed border-border bg-slate-50/80 px-4 py-8 text-center text-sm text-muted">
-          No listings yet. Post a job on WhatsApp to appear here.
+          No listings yet. Use “Post a Job” to create your first listing.
         </p>
       ) : (
         <ul className="mt-4 grid list-none grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">

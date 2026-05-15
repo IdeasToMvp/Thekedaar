@@ -13,16 +13,15 @@ import {
   roleToApiParam,
   type SalaryBandId,
 } from "@/lib/launch";
-import type { ActivityResponse } from "@/lib/jobs/activity";
 import { isRecruiterView } from "@/lib/jobs/viewerRole";
 import { AppNavbar } from "./AppNavbar";
-import { MyListingsSection } from "./MyListingsSection";
 import { FeedSidebar } from "./FeedSidebar";
 import { FeedMobileFilters } from "./FeedMobileFilters";
 import { FeaturedJobCard } from "./FeaturedJobCard";
 import { FeedJobCard } from "./FeedJobCard";
 import { NearbyHighlights } from "./NearbyHighlights";
 import { PostJobFab } from "./PostJobFab";
+import { PostJobModal } from "./PostJobModal";
 
 const PAGE_SIZE = 24;
 
@@ -42,12 +41,7 @@ export function FeedPageContent() {
   const [cityId, setCityId] = useState(ACTIVE_MARKET.defaultCityId);
   const [salaryBand, setSalaryBand] = useState<SalaryBandId>("all");
   const [sort] = useState<SortOption>("newest");
-  const [myListings, setMyListings] = useState<FeedJob[]>([]);
-  const [myListingsLoading, setMyListingsLoading] = useState(false);
-
-  const whatsAppUrl =
-    process.env.NEXT_PUBLIC_WHATSAPP_URL?.trim() ||
-    "https://wa.me/?text=" + encodeURIComponent("Hi Thekedaar, I want to post a job in Gurugram.");
+  const [postJobOpen, setPostJobOpen] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -64,29 +58,6 @@ export function FeedPageContent() {
       cancelled = true;
     };
   }, []);
-
-  useEffect(() => {
-    if (!user?.can_hire) {
-      setMyListings([]);
-      return;
-    }
-    let cancelled = false;
-    setMyListingsLoading(true);
-    fetch("/api/auth/activity")
-      .then((r) => r.json())
-      .then((data: ActivityResponse) => {
-        if (!cancelled) setMyListings(data.myListings ?? []);
-      })
-      .catch(() => {
-        if (!cancelled) setMyListings([]);
-      })
-      .finally(() => {
-        if (!cancelled) setMyListingsLoading(false);
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, [user?.can_hire, user?.id]);
 
   const fetchFeed = useCallback(
     async (nextOffset: number, append: boolean) => {
@@ -227,10 +198,6 @@ export function FeedPageContent() {
 
             <NearbyHighlights items={highlights} />
 
-            {user?.can_hire ? (
-              <MyListingsSection listings={myListings} loading={myListingsLoading} compact />
-            ) : null}
-
             {error ? (
               <div
                 className="mt-6 rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-900"
@@ -295,7 +262,17 @@ export function FeedPageContent() {
         </main>
       </div>
 
-      {user && isRecruiterView(user) ? <PostJobFab whatsAppUrl={whatsAppUrl} /> : null}
+      {user && isRecruiterView(user) ? (
+        <>
+          <PostJobFab onClick={() => setPostJobOpen(true)} />
+          <PostJobModal
+            open={postJobOpen}
+            cityId={cityId}
+            onClose={() => setPostJobOpen(false)}
+            onSuccess={() => fetchFeed(0, false).catch(() => {})}
+          />
+        </>
+      ) : null}
     </div>
   );
 }

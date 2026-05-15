@@ -5,8 +5,11 @@ import { useEffect, useState } from "react";
 import type { MeResponse, MeUser } from "@/lib/auth/types";
 import type { ActivityResponse } from "@/lib/jobs/activity";
 import type { FeedJob } from "@/lib/jobs/types";
+import { isRecruiterView } from "@/lib/jobs/viewerRole";
 import { AppNavbar } from "./AppNavbar";
 import { MyListingsSection } from "./MyListingsSection";
+import { PostJobFab } from "./PostJobFab";
+import { PostJobModal } from "./PostJobModal";
 import { ACTIVE_MARKET } from "@/lib/launch";
 
 export function MyListingsPageContent() {
@@ -15,6 +18,13 @@ export function MyListingsPageContent() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [cityId, setCityId] = useState(ACTIVE_MARKET.defaultCityId);
+  const [postJobOpen, setPostJobOpen] = useState(false);
+
+  async function refreshListings() {
+    const actRes = await fetch("/api/auth/activity");
+    const actData = (await actRes.json()) as ActivityResponse;
+    if (actRes.ok) setListings(actData.myListings ?? []);
+  }
 
   useEffect(() => {
     let cancelled = false;
@@ -84,6 +94,18 @@ export function MyListingsPageContent() {
           <MyListingsSection listings={listings} loading={loading} />
         </div>
       </main>
+
+      {isRecruiterView(user) ? (
+        <>
+          <PostJobFab onClick={() => setPostJobOpen(true)} />
+          <PostJobModal
+            open={postJobOpen}
+            cityId={cityId}
+            onClose={() => setPostJobOpen(false)}
+            onSuccess={() => refreshListings().catch(() => {})}
+          />
+        </>
+      ) : null}
     </div>
   );
 }
