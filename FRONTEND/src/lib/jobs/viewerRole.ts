@@ -1,32 +1,26 @@
 import type { MeUser } from "@/lib/auth/types";
+import { accountKind, isEmployerAccount, isWorkerAccount } from "@/lib/auth/accountRole";
 
 export type PrimaryJobAction = "apply" | "hire";
 
-/** What the primary CTA should be on job cards for this user. */
+/** Workers apply; employers use hire-style actions on job cards (rare on v1 feed). */
 export function primaryJobAction(user: MeUser): PrimaryJobAction | null {
-  if (user.can_seek && user.can_hire) {
-    return user.current_mode === "recruiter" ? "hire" : "apply";
-  }
-  if (user.can_seek) return "apply";
-  if (user.can_hire) return "hire";
+  if (isWorkerAccount(user)) return "apply";
+  if (isEmployerAccount(user)) return "hire";
   return null;
 }
 
 export function isWorkerView(user: MeUser): boolean {
-  const action = primaryJobAction(user);
-  return action === "apply";
+  return isWorkerAccount(user);
 }
 
 export function isRecruiterView(user: MeUser): boolean {
-  const action = primaryJobAction(user);
-  return action === "hire";
+  return isEmployerAccount(user);
 }
 
 export function viewerModeLabel(user: MeUser): string {
-  if (user.can_seek && user.can_hire) {
-    return user.current_mode === "recruiter" ? "Hiring" : "Looking for work";
-  }
-  if (user.can_seek) return "Looking for work";
-  if (user.can_hire) return "Hiring";
+  const kind = accountKind(user);
+  if (kind === "employer") return "Employer";
+  if (kind === "worker") return "Worker";
   return "Guest";
 }

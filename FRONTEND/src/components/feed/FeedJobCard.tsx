@@ -5,7 +5,10 @@ import type { FeedJob, FeedLimits } from "@/lib/jobs/types";
 import type { MeUser } from "@/lib/auth/types";
 import { formatRelativeTime, formatSalary } from "@/lib/formatRelativeTime";
 import { categoryIcon } from "@/lib/jobs/feedFilters";
+import { formatUrgencyLabel } from "@/lib/jobs/listingDetails";
+import { workerOrJobLocation } from "@/lib/location/publicLocation";
 import { JobCardActions } from "./JobCardActions";
+import { JobListingMeta } from "./JobListingMeta";
 
 type Props = {
   job: FeedJob;
@@ -38,13 +41,28 @@ export function FeedJobCard({ job, user, onContactRecorded }: Props) {
 
       <h3 className="mt-3 line-clamp-2 min-h-[2.75rem] text-base font-bold leading-snug text-foreground">{job.title}</h3>
       <p className="mt-1 line-clamp-1 text-sm text-muted">
-        {job.city}
+        <span className="font-medium text-foreground/90">{job.category}</span>
+        <span className="mx-1 text-border">·</span>
+        {workerOrJobLocation({ publicLocation: job.publicLocation, city: job.city, sector: job.sector })}
         <span className="mx-1 text-border">·</span>
         {own ? "You" : job.employerDisplayName}
       </p>
-      <p className="mt-2 line-clamp-3 min-h-[3.75rem] flex-1 text-sm leading-relaxed text-muted">{job.description}</p>
 
-      <p className="mt-2 shrink-0 text-xs text-muted">{formatRelativeTime(job.postedAt)}</p>
+      <JobListingMeta job={job} compact className="mt-3" />
+
+      {job.description ? (
+        <p className="mt-2 line-clamp-2 text-sm leading-relaxed text-muted">{job.description}</p>
+      ) : null}
+
+      <p className="mt-2 shrink-0 text-xs text-muted">
+        Posted {formatRelativeTime(job.postedAt)}
+        {!own && job.urgency === "high" ? (
+          <>
+            <span className="mx-1">·</span>
+            <span className="font-medium text-amber-800">{formatUrgencyLabel(job)}</span>
+          </>
+        ) : null}
+      </p>
 
       {own ? (
         <div className="mt-auto pt-3">

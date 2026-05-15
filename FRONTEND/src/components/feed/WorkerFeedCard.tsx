@@ -3,6 +3,9 @@
 import type { FeedWorker } from "@/lib/workers/types";
 import type { MeUser } from "@/lib/auth/types";
 import { formatRelativeTime, formatSalary } from "@/lib/formatRelativeTime";
+import { WorkerCardActions } from "./WorkerCardActions";
+import { WorkerListingMeta } from "./WorkerListingMeta";
+
 function roleEmoji(role: string): string {
   const r = role.toLowerCase();
   if (r.includes("cook")) return "👨‍🍳";
@@ -10,7 +13,6 @@ function roleEmoji(role: string): string {
   if (r.includes("shop")) return "🛒";
   return "💼";
 }
-import { WorkerCardActions } from "./WorkerCardActions";
 
 type Props = {
   worker: FeedWorker;
@@ -19,6 +21,7 @@ type Props = {
 
 export function WorkerFeedCard({ worker, user }: Props) {
   const own = Boolean(worker.isOwnProfile);
+  const skills = worker.skills?.length ? worker.skills : worker.role ? [worker.role] : [];
 
   return (
     <article
@@ -47,28 +50,28 @@ export function WorkerFeedCard({ worker, user }: Props) {
       </div>
 
       <h3 className="mt-3 line-clamp-1 text-base font-bold text-foreground">{worker.displayName}</h3>
-      <ul className="mt-2 flex flex-wrap gap-1.5">
-        {(worker.skills?.length ? worker.skills : worker.role ? [worker.role] : []).map((skill) => (
-          <li
-            key={skill}
-            className="inline-flex items-center gap-1 rounded-full bg-slate-100 px-2 py-0.5 text-xs font-medium text-foreground"
-          >
-            <span aria-hidden>{roleEmoji(skill)}</span>
-            {skill}
-          </li>
-        ))}
-      </ul>
-      <p className="mt-1 text-sm text-muted">{worker.city || "City not set"}</p>
-      <p className="mt-2 line-clamp-2 flex-1 text-sm text-muted">
-        {worker.experienceYears != null && worker.experienceYears > 0
-          ? `${worker.experienceYears} yr experience · `
-          : ""}
-        {worker.availability}
-      </p>
+      {skills.length > 0 ? (
+        <ul className="mt-2 flex flex-wrap gap-1.5">
+          {skills.map((skill) => (
+            <li
+              key={skill}
+              className="inline-flex items-center gap-1 rounded-full bg-slate-100 px-2 py-0.5 text-xs font-medium text-foreground"
+            >
+              <span aria-hidden>{roleEmoji(skill)}</span>
+              {skill}
+            </li>
+          ))}
+        </ul>
+      ) : null}
+
+      <WorkerListingMeta worker={worker} compact className="mt-3" />
+
       <p className="mt-2 shrink-0 text-xs text-muted">Listed {formatRelativeTime(worker.listedAt)}</p>
 
       {own ? (
-        <p className="mt-auto pt-3 text-xs text-muted">This is how employers see your profile on the feed.</p>
+        <p className="mt-auto pt-3 text-xs text-muted">
+          Employers see city and sector only — not your full address or phone.
+        </p>
       ) : (
         <WorkerCardActions worker={worker} user={user} />
       )}

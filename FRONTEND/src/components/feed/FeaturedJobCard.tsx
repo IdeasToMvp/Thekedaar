@@ -1,8 +1,11 @@
 import Link from "next/link";
 import type { FeedJob, FeedLimits } from "@/lib/jobs/types";
 import type { MeUser } from "@/lib/auth/types";
-import { formatSalary } from "@/lib/formatRelativeTime";
+import { formatRelativeTime, formatSalary } from "@/lib/formatRelativeTime";
+import { formatUrgencyLabel } from "@/lib/jobs/listingDetails";
+import { workerOrJobLocation } from "@/lib/location/publicLocation";
 import { JobCardActions } from "./JobCardActions";
+import { JobListingMeta } from "./JobListingMeta";
 
 function gradientFor(category: string) {
   const c = category.toLowerCase();
@@ -51,11 +54,25 @@ export function FeaturedJobCard({ job, user, onContactRecorded }: Props) {
           </div>
           <h3 className="mt-2 text-xl font-bold text-foreground">{job.title}</h3>
           <p className="mt-1 text-sm text-muted">
-            {job.city}
+            <span className="font-medium text-foreground/90">{job.category}</span>
+            <span className="mx-1">·</span>
+            {workerOrJobLocation({ publicLocation: job.publicLocation, city: job.city, sector: job.sector })}
             <span className="mx-1">·</span>
             {own ? "You" : job.employerDisplayName}
           </p>
-          <p className="mt-3 line-clamp-2 text-sm leading-relaxed text-muted">{job.description}</p>
+          <JobListingMeta job={job} className="mt-3" />
+          {job.description ? (
+            <p className="mt-2 line-clamp-2 text-sm leading-relaxed text-muted">{job.description}</p>
+          ) : null}
+          <p className="mt-2 text-xs text-muted">
+            Posted {formatRelativeTime(job.postedAt)}
+            {job.urgency === "high" ? (
+              <>
+                <span className="mx-1">·</span>
+                <span className="font-medium text-amber-800">{formatUrgencyLabel(job)}</span>
+              </>
+            ) : null}
+          </p>
           <div className="mt-4">
             {own ? (
               <Link

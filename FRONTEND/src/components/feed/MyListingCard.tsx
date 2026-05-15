@@ -3,6 +3,9 @@
 import type { FeedJob } from "@/lib/jobs/types";
 import { formatRelativeTime, formatSalary } from "@/lib/formatRelativeTime";
 import { categoryIcon } from "@/lib/jobs/feedFilters";
+import { formatUrgencyLabel } from "@/lib/jobs/listingDetails";
+import { workerOrJobLocation } from "@/lib/location/publicLocation";
+import { JobListingMeta } from "./JobListingMeta";
 
 const urgencyStyles: Record<FeedJob["urgency"], string> = {
   high: "bg-amber-100 text-amber-900",
@@ -25,9 +28,9 @@ export function MyListingCard({ job, onEdit }: Props) {
         <div className="text-right">
           <p className="text-lg font-bold text-brand">{formatSalary(job.salaryPerMonth)}</p>
           <span
-            className={`mt-1 inline-block rounded-full px-2 py-0.5 text-[10px] font-semibold capitalize ${urgencyStyles[job.urgency]}`}
+            className={`mt-1 inline-block rounded-full px-2 py-0.5 text-[10px] font-semibold ${urgencyStyles[job.urgency]}`}
           >
-            {job.urgency}
+            {formatUrgencyLabel(job)}
           </span>
         </div>
       </div>
@@ -36,10 +39,14 @@ export function MyListingCard({ job, onEdit }: Props) {
       <p className="mt-1 text-sm text-muted">
         {job.category}
         <span className="mx-1">·</span>
-        {job.city}
+        {workerOrJobLocation({ publicLocation: job.publicLocation, city: job.city, sector: job.sector })}
       </p>
-      <p className="mt-2 line-clamp-2 flex-1 text-sm text-muted">{job.description}</p>
-      <p className="mt-3 text-xs text-muted">Posted {formatRelativeTime(job.postedAt)} · Live on feed</p>
+
+      <JobListingMeta job={job} compact className="mt-3" />
+
+      {job.description ? <p className="mt-2 line-clamp-2 flex-1 text-sm text-muted">{job.description}</p> : null}
+
+      <p className="mt-3 shrink-0 text-xs text-muted">Posted {formatRelativeTime(job.postedAt)} · Live on feed</p>
 
       {onEdit ? (
         <button

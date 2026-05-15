@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import type { MeResponse, ProfilePatchBody, WorkerProfile } from "@/lib/auth/types";
+import { accountKind, accountKindLabel, isEmployerAccount, isWorkerAccount } from "@/lib/auth/accountRole";
 import { ACTIVE_MARKET } from "@/lib/launch";
 import { roleIdsToSkillLabels, skillLabelsToRoleIds } from "@/lib/launch/skillIds";
 import { useFeedUser } from "@/components/feed/FeedUserProvider";
@@ -11,7 +12,6 @@ import { SkillMultiSelect } from "./SkillMultiSelect";
 
 export function ProfilePageContent() {
   const { user, userLoading, cityId, setCityId, refreshUser } = useFeedUser();
-  const [me, setMe] = useState<MeResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -19,16 +19,17 @@ export function ProfilePageContent() {
 
   const [name, setName] = useState("");
   const [city, setCity] = useState("");
-  const [currentMode, setCurrentMode] = useState<"worker" | "recruiter">("worker");
+  const [sector, setSector] = useState("");
   const [skillRoleIds, setSkillRoleIds] = useState<string[]>([]);
+  const [age, setAge] = useState("");
+  const [gender, setGender] = useState<"male" | "female" | "other" | "prefer_not_to_say" | "">("");
+  const [hasAadhaar, setHasAadhaar] = useState<boolean | null>(null);
   const [experienceYears, setExperienceYears] = useState("");
   const [expectedSalary, setExpectedSalary] = useState("");
   const [availability, setAvailability] = useState("");
   const [businessName, setBusinessName] = useState("");
   const [companyName, setCompanyName] = useState("");
   const [hiringType, setHiringType] = useState("individual");
-  const [enableWorker, setEnableWorker] = useState(false);
-  const [enableRecruiter, setEnableRecruiter] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -37,22 +38,26 @@ export function ProfilePageContent() {
       .then((r) => r.json())
       .then((data: MeResponse) => {
         if (cancelled) return;
-        setMe(data);
         if (data?.user) {
           setName(data.user.name ?? "");
           setCity(data.user.city ?? ACTIVE_MARKET.displayName);
-          setCurrentMode(data.user.current_mode);
+          setSector(data.user.sector ?? "");
         }
         const wp = data.worker_profile as WorkerProfile | null | undefined;
         if (wp) {
-          setEnableWorker(true);
           setSkillRoleIds(skillLabelsToRoleIds(wp.skills?.length ? wp.skills : wp.role ? [wp.role] : []));
+          setAge(wp.age != null ? String(wp.age) : "");
+          setGender(
+            wp.gender === "male" || wp.gender === "female" || wp.gender === "other" || wp.gender === "prefer_not_to_say"
+              ? wp.gender
+              : "",
+          );
+          setHasAadhaar(wp.has_aadhaar ?? null);
           setExperienceYears(wp.experience_years != null ? String(wp.experience_years) : "");
           setExpectedSalary(wp.expected_salary != null ? String(wp.expected_salary) : "");
           setAvailability(wp.availability ?? "");
         }
         if (data.recruiter_profile) {
-          setEnableRecruiter(true);
           setBusinessName(data.recruiter_profile.business_name ?? "");
           setCompanyName(data.recruiter_profile.company_name ?? "");
           setHiringType(data.recruiter_profile.hiring_type ?? "individual");
@@ -71,33 +76,42 @@ export function ProfilePageContent() {
 
   async function handleSave(e: React.FormEvent) {
     e.preventDefault();
+    if (!user) return;
     setError(null);
     setSuccess(null);
 
     const body: ProfilePatchBody = {
       name: name.trim() || null,
       city: city.trim() || null,
-      current_mode: currentMode,
+      sector: sector.trim() || null,
     };
 
-    if (enableWorker) {
+    if (isWorkerAccount(user)) {
       if (skillRoleIds.length === 0) {
-        setError("Select at least one skill for your worker profile.");
+        setError("Select at least one skill.");
         return;
       }
       const skills = roleIdsToSkillLabels(skillRoleIds);
+      const ageNum = age.trim() ? Number(age) : null;
+      if (ageNum != null && (!Number.isInteger(ageNum) || ageNum < 16 || ageNum > 80)) {
+        setError("Age must be between 16 and 80.");
+        return;
+      }
       const exp = experienceYears.trim() ? Number(experienceYears) : null;
       const sal = expectedSalary.trim() ? Number(expectedSalary) : null;
       body.worker = {
         skills,
         role: skills[0] ?? null,
+        age: Number.isFinite(ageNum) ? ageNum : null,
+        gender: gender || null,
+        has_aadhaar: hasAadhaar,
         experience_years: Number.isFinite(exp) ? exp : null,
         expected_salary: Number.isFinite(sal) ? sal : null,
         availability: availability.trim() || null,
       };
     }
 
-    if (enableRecruiter) {
+    if (isEmployerAccount(user)) {
       body.recruiter = {
         business_name: businessName.trim() || null,
         company_name: companyName.trim() || null,
@@ -114,7 +128,6 @@ export function ProfilePageContent() {
       });
       const data = (await resp.json()) as MeResponse & { error?: string };
       if (!resp.ok) throw new Error(data.error || "Could not save profile");
-      setMe(data);
       await refreshUser();
       setSuccess("Profile saved.");
     } catch (err: unknown) {
@@ -134,21 +147,35 @@ export function ProfilePageContent() {
 
   if (!user) return null;
 
+  const kind = accountKind(user);
+  const backHref = kind === "employer" ? "/feed/my-listings" : "/feed";
+
   return (
     <div className="flex min-h-dvh flex-col bg-background">
       <AppNavbar user={user} cityId={cityId} onCityChange={setCityId} />
 
       <main className="mx-auto w-full max-w-2xl flex-1 px-4 py-8 pb-16 sm:px-6">
-        <Link href="/feed" className="text-sm font-medium text-brand hover:underline">
-          ← Back to feed
+        <Link href={backHref} className="text-sm font-medium text-brand hover:underline">
+          ← Back
         </Link>
 
         <header className="mt-4">
+          <p className="text-xs font-semibold uppercase tracking-wider text-brand">{kind ? accountKindLabel(kind) : "Account"}</p>
           <h1 className="font-serif text-2xl font-bold text-foreground">Your profile</h1>
-          <p className="mt-1 text-sm text-muted">Update how you appear to employers and workers on Thekedaar.</p>
+          <p className="mt-1 text-sm text-muted">
+            {kind === "employer"
+              ? "Manage your employer details. Role switching is not available in this version."
+              : kind === "worker"
+                ? "Manage how you appear to employers. Contact details are shared only after a future contact flow."
+                : "Complete your profile to use Thekedaar."}
+          </p>
         </header>
 
-        {loading ? (
+        {!kind ? (
+          <p className="mt-8 rounded-xl border border-dashed border-border px-4 py-8 text-center text-sm text-muted">
+            Finish onboarding on WhatsApp, then return here to complete your profile.
+          </p>
+        ) : loading ? (
           <div className="mt-8 h-48 animate-pulse rounded-2xl bg-slate-200/60" />
         ) : (
           <form onSubmit={handleSave} className="mt-8 space-y-8">
@@ -163,7 +190,6 @@ export function ProfilePageContent() {
                   value={name}
                   onChange={(e) => setName(e.target.value)}
                   className="mt-1.5 w-full rounded-xl border border-border bg-background px-3 py-2.5 text-sm"
-                  placeholder="Your name"
                 />
               </label>
 
@@ -173,44 +199,75 @@ export function ProfilePageContent() {
                   type="text"
                   value={city}
                   onChange={(e) => setCity(e.target.value)}
+                  placeholder="e.g. Gurugram"
                   className="mt-1.5 w-full rounded-xl border border-border bg-background px-3 py-2.5 text-sm"
-                  placeholder={ACTIVE_MARKET.displayName}
                 />
               </label>
-
               <label className="mt-4 block text-sm font-medium text-foreground">
-                Default view
-                <select
-                  value={currentMode}
-                  onChange={(e) => setCurrentMode(e.target.value as "worker" | "recruiter")}
+                Area / sector
+                <input
+                  type="text"
+                  value={sector}
+                  onChange={(e) => setSector(e.target.value)}
+                  placeholder="e.g. Sector 56, DLF Phase 2 — not full address"
                   className="mt-1.5 w-full rounded-xl border border-border bg-background px-3 py-2.5 text-sm"
-                >
-                  <option value="worker">Looking for work</option>
-                  <option value="recruiter">Hiring</option>
-                </select>
+                />
               </label>
+              <p className="mt-1 text-xs text-muted">Only city and sector are shown on your profile — never a full address.</p>
             </section>
 
-            <section className="rounded-2xl border border-border bg-surface p-5 shadow-sm">
-              <div className="flex items-start justify-between gap-3">
-                <div>
-                  <h2 className="text-base font-bold text-foreground">Worker profile</h2>
-                  <p className="mt-0.5 text-xs text-muted">Shown on the Workers tab when you are looking for work.</p>
-                </div>
-                <label className="flex shrink-0 items-center gap-2 text-sm">
-                  <input
-                    type="checkbox"
-                    checked={enableWorker}
-                    onChange={(e) => setEnableWorker(e.target.checked)}
-                    className="accent-brand"
-                  />
-                  Active
-                </label>
-              </div>
-
-              {enableWorker ? (
-                <div className="mt-4 space-y-4 border-t border-border pt-4">
+            {isWorkerAccount(user) ? (
+              <section className="rounded-2xl border border-border bg-surface p-5 shadow-sm">
+                <h2 className="text-base font-bold text-foreground">Worker profile</h2>
+                <p className="mt-0.5 text-xs text-muted">Visible on Find Workers for employers (without your phone).</p>
+                <div className="mt-4 space-y-4">
                   <SkillMultiSelect selectedRoleIds={skillRoleIds} onChange={setSkillRoleIds} />
+                  <label className="block text-sm font-medium text-foreground">
+                    Age
+                    <input
+                      type="text"
+                      inputMode="numeric"
+                      value={age}
+                      onChange={(e) => setAge(e.target.value)}
+                      className="mt-1.5 w-full rounded-xl border border-border bg-background px-3 py-2.5 text-sm"
+                    />
+                  </label>
+                  <label className="block text-sm font-medium text-foreground">
+                    Gender
+                    <select
+                      value={gender}
+                      onChange={(e) => setGender(e.target.value as typeof gender)}
+                      className="mt-1.5 w-full rounded-xl border border-border bg-background px-3 py-2.5 text-sm"
+                    >
+                      <option value="">Select</option>
+                      <option value="male">Male</option>
+                      <option value="female">Female</option>
+                      <option value="other">Other</option>
+                      <option value="prefer_not_to_say">Prefer not to say</option>
+                    </select>
+                  </label>
+                  <fieldset>
+                    <legend className="text-sm font-medium text-foreground">Aadhaar card</legend>
+                    <div className="mt-2 flex gap-4">
+                      {(
+                        [
+                          { v: true, label: "Yes, I have it" },
+                          { v: false, label: "No" },
+                        ] as const
+                      ).map(({ v, label }) => (
+                        <label key={String(v)} className="flex cursor-pointer items-center gap-2 text-sm">
+                          <input
+                            type="radio"
+                            name="has_aadhaar"
+                            checked={hasAadhaar === v}
+                            onChange={() => setHasAadhaar(v)}
+                            className="accent-brand"
+                          />
+                          {label}
+                        </label>
+                      ))}
+                    </div>
+                  </fieldset>
                   <label className="block text-sm font-medium text-foreground">
                     Experience (years)
                     <input
@@ -237,33 +294,18 @@ export function ProfilePageContent() {
                       type="text"
                       value={availability}
                       onChange={(e) => setAvailability(e.target.value)}
-                      placeholder="e.g. Immediate"
                       className="mt-1.5 w-full rounded-xl border border-border bg-background px-3 py-2.5 text-sm"
                     />
                   </label>
                 </div>
-              ) : null}
-            </section>
+              </section>
+            ) : null}
 
-            <section className="rounded-2xl border border-border bg-surface p-5 shadow-sm">
-              <div className="flex items-start justify-between gap-3">
-                <div>
-                  <h2 className="text-base font-bold text-foreground">Employer profile</h2>
-                  <p className="mt-0.5 text-xs text-muted">Required to post jobs and manage listings.</p>
-                </div>
-                <label className="flex shrink-0 items-center gap-2 text-sm">
-                  <input
-                    type="checkbox"
-                    checked={enableRecruiter}
-                    onChange={(e) => setEnableRecruiter(e.target.checked)}
-                    className="accent-brand"
-                  />
-                  Active
-                </label>
-              </div>
-
-              {enableRecruiter ? (
-                <div className="mt-4 space-y-4 border-t border-border pt-4">
+            {isEmployerAccount(user) ? (
+              <section className="rounded-2xl border border-border bg-surface p-5 shadow-sm">
+                <h2 className="text-base font-bold text-foreground">Employer profile</h2>
+                <p className="mt-0.5 text-xs text-muted">Used when you post and manage job listings.</p>
+                <div className="mt-4 space-y-4">
                   <label className="block text-sm font-medium text-foreground">
                     Business / display name
                     <input
@@ -294,8 +336,8 @@ export function ProfilePageContent() {
                     </select>
                   </label>
                 </div>
-              ) : null}
-            </section>
+              </section>
+            ) : null}
 
             {error ? (
               <p className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">{error}</p>

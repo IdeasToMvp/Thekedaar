@@ -5,6 +5,11 @@ export type FeedWorker = {
   role: string;
   skills: string[];
   city: string;
+  sector?: string;
+  publicLocation?: string;
+  age?: number | null;
+  gender?: string | null;
+  hasAadhaar?: boolean | null;
   expectedSalary: number;
   experienceYears: number | null;
   availability: string;

@@ -6,6 +6,7 @@ export type MeUser = {
   phone: string;
   name: string | null;
   city: string | null;
+  sector?: string | null;
   current_mode: AppMode;
   can_seek: boolean;
   can_hire: boolean;
@@ -15,6 +16,9 @@ export type WorkerProfile = {
   user_id: string;
   role: string | null;
   skills?: string[] | null;
+  age: number | null;
+  gender: string | null;
+  has_aadhaar: boolean | null;
   experience_years: number | null;
   expected_salary: number | null;
   availability: string | null;
@@ -37,10 +41,14 @@ export type MeResponse = {
 export type ProfilePatchBody = {
   name?: string | null;
   city?: string | null;
+  sector?: string | null;
   current_mode?: AppMode;
   worker?: {
     role?: string | null;
     skills?: string[] | null;
+    age?: number | null;
+    gender?: "male" | "female" | "other" | "prefer_not_to_say" | null;
+    has_aadhaar?: boolean | null;
     experience_years?: number | null;
     expected_salary?: number | null;
     availability?: string | null;

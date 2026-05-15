@@ -4,6 +4,9 @@ export async function upsertWorkerProfile(input: {
   userId: string;
   role?: string | null;
   skills?: string[] | null;
+  age?: number | null;
+  gender?: string | null;
+  hasAadhaar?: boolean | null;
   experienceYears?: number | null;
   expectedSalary?: number | null;
   availability?: string | null;
@@ -18,6 +21,9 @@ export async function upsertWorkerProfile(input: {
       user_id: input.userId,
       role: unique[0] ?? input.role ?? null,
       skills: unique,
+      age: input.age ?? null,
+      gender: input.gender ?? null,
+      has_aadhaar: input.hasAadhaar ?? null,
       experience_years: input.experienceYears ?? null,
       expected_salary: input.expectedSalary ?? null,
       availability: input.availability ?? null,

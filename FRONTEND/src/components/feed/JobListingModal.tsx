@@ -7,9 +7,14 @@ import { skillLabelToRoleId } from "@/lib/launch/skillIds";
 
 export type JobListingFormValues = {
   roleId: string;
+  sector: string;
   salary: string;
   timing: string;
   accommodation: "yes" | "no";
+  minAge: string;
+  maxAge: string;
+  preferredGender: "any" | "male" | "female";
+  aadhaarRequired: boolean;
   urgency: string;
   description: string;
 };
@@ -39,9 +44,15 @@ function formFromJob(job: FeedJob): JobListingFormValues {
   const roleId = skillLabelToRoleId(job.category) || ACTIVE_MARKET.roles[0]?.id || "";
   return {
     roleId,
+    sector: job.sector?.trim() || "",
     salary: job.salaryPerMonth > 0 ? String(job.salaryPerMonth) : "",
     timing: job.timing?.trim() || "",
     accommodation: job.accommodation ? "yes" : "no",
+    minAge: job.minAge != null ? String(job.minAge) : "",
+    maxAge: job.maxAge != null ? String(job.maxAge) : "",
+    preferredGender:
+      job.preferredGender === "male" || job.preferredGender === "female" ? job.preferredGender : "any",
+    aadhaarRequired: job.requiredDocuments?.includes("aadhaar") ?? false,
     urgency: urgencyFromJob(job),
     description: job.description?.trim() || "",
   };
@@ -49,9 +60,14 @@ function formFromJob(job: FeedJob): JobListingFormValues {
 
 const emptyForm = (): JobListingFormValues => ({
   roleId: ACTIVE_MARKET.roles[0]?.id ?? "",
+  sector: "",
   salary: "",
   timing: "",
   accommodation: "no",
+  minAge: "",
+  maxAge: "",
+  preferredGender: "any",
+  aadhaarRequired: true,
   urgency: "Flexible",
   description: "",
 });
@@ -96,9 +112,30 @@ export function JobListingModal({ open, cityId, job, onClose, onSuccess }: Props
       return;
     }
 
+    const sector = form.sector.trim();
+    if (!sector) {
+      setError("Enter area or sector (e.g. Sector 56) — not a full address.");
+      return;
+    }
+
     const timing = form.timing.trim();
     if (!timing) {
       setError("Enter working hours or timing.");
+      return;
+    }
+
+    const minAge = form.minAge.trim() ? Number(form.minAge) : null;
+    const maxAge = form.maxAge.trim() ? Number(form.maxAge) : null;
+    if (minAge != null && (!Number.isInteger(minAge) || minAge < 16 || minAge > 80)) {
+      setError("Minimum age must be between 16 and 80.");
+      return;
+    }
+    if (maxAge != null && (!Number.isInteger(maxAge) || maxAge < 16 || maxAge > 80)) {
+      setError("Maximum age must be between 16 and 80.");
+      return;
+    }
+    if (minAge != null && maxAge != null && minAge > maxAge) {
+      setError("Minimum age cannot be greater than maximum age.");
       return;
     }
 
@@ -106,9 +143,14 @@ export function JobListingModal({ open, cityId, job, onClose, onSuccess }: Props
       title: role.label,
       category: role.apiCategory,
       city: cityToApiParam(cityId) ?? ACTIVE_MARKET.displayName,
+      sector,
       salary: Math.round(salaryNum),
       timing,
       accommodation: form.accommodation === "yes",
+      minAge,
+      maxAge,
+      preferredGender: form.preferredGender,
+      requiredDocuments: form.aadhaarRequired ? (["aadhaar"] as const) : [],
       urgency: form.urgency,
       description: form.description.trim() || null,
     };
@@ -172,6 +214,19 @@ export function JobListingModal({ open, cityId, job, onClose, onSuccess }: Props
           </label>
 
           <label className="mt-4 block text-sm font-medium text-foreground">
+            Area / sector
+            <input
+              type="text"
+              required
+              value={form.sector}
+              onChange={(e) => setForm((f) => ({ ...f, sector: e.target.value }))}
+              placeholder="e.g. Sector 56, Sikanderpur"
+              className="mt-1.5 w-full rounded-xl border border-border bg-background px-3 py-2.5 text-sm"
+            />
+          </label>
+          <p className="mt-1 text-xs text-muted">City is {cityToApiParam(cityId) ?? ACTIVE_MARKET.displayName}. Do not enter a full street address.</p>
+
+          <label className="mt-4 block text-sm font-medium text-foreground">
             Monthly salary (₹)
             <input
               type="text"
@@ -192,6 +247,59 @@ export function JobListingModal({ open, cityId, job, onClose, onSuccess }: Props
               onChange={(e) => setForm((f) => ({ ...f, timing: e.target.value }))}
               className="mt-1.5 w-full rounded-xl border border-border bg-background px-3 py-2.5 text-sm"
             />
+          </label>
+
+          <div className="mt-4 grid grid-cols-2 gap-3">
+            <label className="block text-sm font-medium text-foreground">
+              Min age
+              <input
+                type="text"
+                inputMode="numeric"
+                placeholder="e.g. 20"
+                value={form.minAge}
+                onChange={(e) => setForm((f) => ({ ...f, minAge: e.target.value }))}
+                className="mt-1.5 w-full rounded-xl border border-border bg-background px-3 py-2.5 text-sm"
+              />
+            </label>
+            <label className="block text-sm font-medium text-foreground">
+              Max age
+              <input
+                type="text"
+                inputMode="numeric"
+                placeholder="Optional"
+                value={form.maxAge}
+                onChange={(e) => setForm((f) => ({ ...f, maxAge: e.target.value }))}
+                className="mt-1.5 w-full rounded-xl border border-border bg-background px-3 py-2.5 text-sm"
+              />
+            </label>
+          </div>
+
+          <label className="mt-4 block text-sm font-medium text-foreground">
+            Preferred gender
+            <select
+              value={form.preferredGender}
+              onChange={(e) =>
+                setForm((f) => ({
+                  ...f,
+                  preferredGender: e.target.value as JobListingFormValues["preferredGender"],
+                }))
+              }
+              className="mt-1.5 w-full rounded-xl border border-border bg-background px-3 py-2.5 text-sm"
+            >
+              <option value="any">Any</option>
+              <option value="male">Male only</option>
+              <option value="female">Female only</option>
+            </select>
+          </label>
+
+          <label className="mt-4 flex cursor-pointer items-center gap-2 text-sm font-medium text-foreground">
+            <input
+              type="checkbox"
+              checked={form.aadhaarRequired}
+              onChange={(e) => setForm((f) => ({ ...f, aadhaarRequired: e.target.checked }))}
+              className="h-4 w-4 accent-brand"
+            />
+            Aadhaar card required
           </label>
 
           <fieldset className="mt-4">

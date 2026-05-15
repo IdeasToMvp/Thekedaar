@@ -101,11 +101,15 @@ router.get("/me", requireSession, async (req, res) => {
 const ProfilePatchSchema = z.object({
   name: z.string().max(120).optional().nullable(),
   city: z.string().max(120).optional().nullable(),
+  sector: z.string().max(80).optional().nullable(),
   current_mode: z.enum(["worker", "recruiter"]).optional(),
   worker: z
     .object({
       role: z.string().max(120).optional().nullable(),
       skills: z.array(z.string().min(1).max(80)).max(8).optional().nullable(),
+      age: z.number().int().min(16).max(80).optional().nullable(),
+      gender: z.enum(["male", "female", "other", "prefer_not_to_say"]).optional().nullable(),
+      has_aadhaar: z.boolean().optional().nullable(),
       experience_years: z.number().int().min(0).max(80).optional().nullable(),
       expected_salary: z.number().int().min(0).optional().nullable(),
       availability: z.string().max(240).optional().nullable(),
@@ -132,6 +136,7 @@ router.patch("/profile", requireSession, async (req, res) => {
       userId: session.sub,
       name: parsed.data.name,
       city: parsed.data.city,
+      sector: parsed.data.sector,
       current_mode: parsed.data.current_mode,
       worker: parsed.data.worker,
       recruiter: parsed.data.recruiter,

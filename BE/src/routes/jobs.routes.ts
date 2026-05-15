@@ -20,12 +20,17 @@ router.get("/feed", optionalSession, handleFeedGet);
 const CreateJobBodySchema = z.object({
   title: z.string().min(1).max(120),
   city: z.string().min(1).max(80).optional().nullable(),
+  sector: z.string().max(80).optional().nullable(),
   salary: z.number().int().positive().max(10_000_000).optional().nullable(),
   timing: z.string().max(120).optional().nullable(),
   accommodation: z.boolean().optional().nullable(),
   urgency: z.string().max(80).optional().nullable(),
   category: z.string().max(80).optional().nullable(),
   description: z.string().max(2000).optional().nullable(),
+  minAge: z.number().int().min(16).max(80).optional().nullable(),
+  maxAge: z.number().int().min(16).max(80).optional().nullable(),
+  preferredGender: z.enum(["any", "male", "female"]).optional().nullable(),
+  requiredDocuments: z.array(z.enum(["aadhaar"])).max(4).optional().nullable(),
 });
 
 router.post("/", requireSession, async (req, res) => {
@@ -56,6 +61,10 @@ router.post("/", requireSession, async (req, res) => {
       urgency: body.urgency?.trim() || null,
       category: body.category?.trim() || null,
       description: body.description?.trim() || null,
+      minAge: body.minAge ?? null,
+      maxAge: body.maxAge ?? null,
+      preferredGender: body.preferredGender ?? null,
+      requiredDocuments: body.requiredDocuments ?? [],
     });
 
     return res.status(201).json({ ok: true, jobId: job.id });
@@ -89,12 +98,17 @@ router.patch("/:jobId", requireSession, async (req, res) => {
       recruiterId: session.sub,
       title: body.title,
       city: body.city,
+      sector: body.sector,
       salary: body.salary,
       timing: body.timing,
       accommodation: body.accommodation,
       urgency: body.urgency,
       category: body.category,
       description: body.description,
+      minAge: body.minAge,
+      maxAge: body.maxAge,
+      preferredGender: body.preferredGender,
+      requiredDocuments: body.requiredDocuments,
     });
     return res.status(200).json({ ok: true, jobId });
   } catch (e: unknown) {

@@ -16,6 +16,42 @@ import {
   detectHiringIntent,
   detectJobSeekingIntent,
 } from "../utils/intentRouter";
+import {
+  aadhaarPrompt,
+  agePrompt,
+  availabilityMenuPrompt,
+  buildJobDescription,
+  buildJobTiming,
+  DOCUMENT_AADHAAR,
+  genderMenuPrompt,
+  genderLabel,
+  isMaidOrCookCategory,
+  jobAadhaarRequiredPrompt,
+  jobCategoryMenuPrompt,
+  jobGenderPreferencePrompt,
+  jobMaxAgePrompt,
+  jobMinAgePrompt,
+  mealFrequencyPrompt,
+  parseAadhaarYesNo,
+  parseAge,
+  parseGender,
+  parseJobGenderPreference,
+  parseMaxAge,
+  parseMealFrequency,
+  parseMenuOrFreeText,
+  parseSingleCategoryChoice,
+  parseSkillSelection,
+  parseWorkShift,
+  shopTimingPrompt,
+  skillsMenuPrompt,
+  urgencyMenuPrompt,
+  workShiftPrompt,
+  cityPrompt,
+  sectorPrompt,
+  WA_AVAILABILITY_OPTIONS,
+  WA_URGENCY_OPTIONS,
+} from "../utils/whatsappFlow";
+import { formatPublicLocation, sanitizeCityInput, sanitizeSectorInput } from "../utils/publicLocation";
 
 type FlowRole = "worker" | "recruiter";
 
@@ -37,8 +73,8 @@ function isBackCommand(s: string): boolean {
 
 function parseYesNo(s: string): boolean | null {
   const t = normalizeText(s);
-  if (["yes", "y", "haan", "ha", "ok", "available"].includes(t)) return true;
-  if (["no", "n", "nahi", "nahin"].includes(t)) return false;
+  if (["yes", "y", "haan", "ha", "ok", "available", "1"].includes(t)) return true;
+  if (["no", "n", "nahi", "nahin", "2"].includes(t)) return false;
   return null;
 }
 
@@ -76,13 +112,19 @@ function historyPop(meta: Record<string, unknown>): { prevStep: ConversationStep
   };
 }
 
+function workerHasMaidOrCook(meta: Record<string, unknown>): boolean {
+  const skills = meta.skills;
+  if (!Array.isArray(skills)) return false;
+  return skills.some((s) => typeof s === "string" && isMaidOrCookCategory(s));
+}
+
 function promptForStep(role: FlowRole, step: ConversationStep): string {
   if (step === "CHOOSE_ROLE") {
     return (
       "Hi! Aap abhi kya karna chahte ho?\n\n" +
       "1) Looking for Job\n" +
       "2) Hiring / staff chahiye\n\n" +
-      "Reply 1 or 2 — ya bhejo: hire | find jobs | switch | post job | work | apply\n\n" +
+      "Reply 1 or 2 — ya bhejo: hire | find jobs | switch | post job\n\n" +
       "(back = previous, reset = restart)"
     );
   }
@@ -90,37 +132,71 @@ function promptForStep(role: FlowRole, step: ConversationStep): string {
   if (role === "worker") {
     switch (step) {
       case "WORKER_NAME":
-        return "Aapka naam? (Type 'back' to go previous step)";
+        return "Aapka naam? (back = previous)";
+      case "WORKER_AGE":
+        return agePrompt();
+      case "WORKER_GENDER":
+        return genderMenuPrompt();
+      case "WORKER_AADHAAR":
+        return aadhaarPrompt();
       case "WORKER_CITY":
-        return "City kahan hai? (e.g. Mumbai, Pune, Delhi)\n(Type 'back' to go previous step)";
-      case "WORKER_JOB_TYPE":
-        return "Kaunsa kaam chahiye? (e.g. Cook, Maid, Driver, Delivery)\n(Type 'back' to go previous step)";
+        return cityPrompt();
+      case "WORKER_SECTOR":
+        return sectorPrompt();
+      case "WORKER_SKILLS":
+        return skillsMenuPrompt();
+      case "WORKER_SKILL_OTHER":
+        return "Other skill — kya kaam karte ho? (e.g. Driver, Security)\n(back = previous)";
+      case "WORKER_SHIFT_PREFERENCE":
+        return mealFrequencyPrompt();
+      case "WORKER_SHIFT_CUSTOM":
+        return workShiftPrompt();
       case "WORKER_EXPECTED_SALARY":
-        return "Expected salary per month? (number only, e.g. 15000)\n(Type 'back' to go previous step)";
+        return "Expected salary per month? (number only, e.g. 15000)\n(back = previous)";
       case "WORKER_EXPERIENCE":
-        return "Experience kitne years? (e.g. 2)\n(Type 'back' to go previous step)";
+        return "Experience kitne saal? (number, e.g. 2)\n(back = previous)";
       case "WORKER_AVAILABILITY":
-        return "Availability? (e.g. Immediate / 1 week / Weekend only)\n(Type 'back' to go previous step)";
+        return availabilityMenuPrompt();
+      case "WORKER_AVAILABILITY_CUSTOM":
+        return "Kab se available ho? (apna likho)\n(back = previous)";
       default:
-        return "Send your reply. (Type 'back' to go previous step)";
+        return "Send your reply. (back = previous)";
     }
   }
 
   switch (step) {
-    case "RECRUITER_JOB_ROLE":
-      return "Aapko kis role ke liye staff chahiye? (e.g. Cook, Maid, Driver)\n(Type 'back' to go previous step)";
+    case "RECRUITER_JOB_CATEGORY":
+      return jobCategoryMenuPrompt();
+    case "RECRUITER_JOB_CATEGORY_OTHER":
+      return "Job category — kya role hai? (e.g. Driver, Guard)\n(back = previous)";
     case "RECRUITER_CITY":
-      return "Job city/location? (e.g. Mumbai)\n(Type 'back' to go previous step)";
+      return cityPrompt();
+    case "RECRUITER_SECTOR":
+      return sectorPrompt();
     case "RECRUITER_SALARY":
-      return "Salary per month? (number only, e.g. 18000)\n(Type 'back' to go previous step)";
+      return "Salary per month? (number only, e.g. 18000)\n(back = previous)";
     case "RECRUITER_ACCOMMODATION":
-      return "Accommodation available? Reply yes/no\n(Type 'back' to go previous step)";
+      return "Accommodation milega? Reply *yes* / *no*\n(back = previous)";
+    case "RECRUITER_MIN_AGE":
+      return jobMinAgePrompt();
+    case "RECRUITER_MAX_AGE":
+      return jobMaxAgePrompt();
+    case "RECRUITER_PREFERRED_GENDER":
+      return jobGenderPreferencePrompt();
+    case "RECRUITER_AADHAAR_REQUIRED":
+      return jobAadhaarRequiredPrompt();
+    case "RECRUITER_MEAL_FREQUENCY":
+      return mealFrequencyPrompt();
+    case "RECRUITER_WORK_SHIFT":
+      return workShiftPrompt();
+    case "RECRUITER_WORK_SHIFT_CUSTOM":
+      return "Apna time likho (e.g. 9am-2pm, 6pm-9pm)\n(back = previous)";
     case "RECRUITER_TIMING":
-      return "Timing? (e.g. 9am-7pm)\n(Type 'back' to go previous step)";
+      return shopTimingPrompt();
     case "RECRUITER_URGENCY":
-      return "Urgency? (Immediate / 1 week / Flexible)\n(Type 'back' to go previous step)";
+      return urgencyMenuPrompt();
     default:
-      return "Send your reply. (Type 'back' to go previous step)";
+      return "Send your reply. (back = previous)";
   }
 }
 
@@ -139,15 +215,53 @@ async function beginWorkerOnboarding(phone: string, lastIntent: string) {
 
 async function beginRecruiterOnboarding(phone: string, lastIntent: string) {
   const meta = { role: "recruiter" as FlowRole, _history: ["CHOOSE_ROLE" as const] };
-  await setConversationState(phone, "RECRUITER_JOB_ROLE", meta, {
+  await setConversationState(phone, "RECRUITER_JOB_CATEGORY", meta, {
     last_intent: lastIntent,
     current_flow: "hiring_flow",
     current_mode: "recruiter",
   });
   await sendWhatsAppText(
     phone,
-    "Got it 👍 Looks like you want to hire someone now.\n\n" + promptForStep("recruiter", "RECRUITER_JOB_ROLE"),
+    "Hiring mode 👍 Job post karte hain.\n\n" + promptForStep("recruiter", "RECRUITER_JOB_CATEGORY"),
   );
+}
+
+function magicLoginUrl(userId: string, phone: string): Promise<string> {
+  const webBase = process.env.WEB_BASE_URL;
+  if (!webBase) return Promise.resolve("");
+  return createMagicLinkForUser({ userId, phone }).then(({ token }) => {
+    const host = webBase.replace(/^https?:\/\//, "").replace(/\/$/, "");
+    return `https://${host}/login/${token}`;
+  });
+}
+
+async function afterWorkerSkills(meta: Record<string, unknown>, phone: string, fromStep: ConversationStep) {
+  if (workerHasMaidOrCook(meta)) {
+    await setConversationState(phone, "WORKER_SHIFT_PREFERENCE", historyPush(meta, fromStep));
+    await sendWhatsAppText(
+      phone,
+      "Cook / Maid ke liye — kitni baar kaam kar sakte ho?\n\n" + mealFrequencyPrompt(),
+    );
+    return;
+  }
+  await setConversationState(phone, "WORKER_EXPECTED_SALARY", historyPush(meta, fromStep));
+  await sendWhatsAppText(phone, promptForStep("worker", "WORKER_EXPECTED_SALARY"));
+}
+
+async function afterRecruiterRequirements(meta: Record<string, unknown>, phone: string, fromStep: ConversationStep) {
+  const category = String(meta.jobCategory ?? "");
+  if (isMaidOrCookCategory(category)) {
+    await setConversationState(phone, "RECRUITER_MEAL_FREQUENCY", historyPush(meta, fromStep));
+    await sendWhatsAppText(phone, promptForStep("recruiter", "RECRUITER_MEAL_FREQUENCY"));
+    return;
+  }
+  await setConversationState(phone, "RECRUITER_TIMING", historyPush(meta, fromStep));
+  await sendWhatsAppText(phone, promptForStep("recruiter", "RECRUITER_TIMING"));
+}
+
+async function afterRecruiterAccommodation(meta: Record<string, unknown>, phone: string, fromStep: ConversationStep) {
+  await setConversationState(phone, "RECRUITER_MIN_AGE", historyPush(meta, fromStep));
+  await sendWhatsAppText(phone, promptForStep("recruiter", "RECRUITER_MIN_AGE"));
 }
 
 export async function handleIncomingWhatsAppMessage(payload: unknown) {
@@ -162,13 +276,13 @@ export async function handleIncomingWhatsAppMessage(payload: unknown) {
     await sendWhatsAppText(
       phone,
       "Commands:\n" +
-        "- hire — start hiring flow\n" +
-        "- find jobs / work / apply — looking for work\n" +
-        "- switch — pick job vs hiring again\n" +
-        "- post job — same as hire\n" +
+        "- hire / post job — hiring flow\n" +
+        "- find jobs / work / apply — job seeker\n" +
+        "- switch — job vs hiring menu\n" +
         "- back — previous question\n" +
         "- reset — start over\n\n" +
-        "Send 'Hi' anytime to open the menu. Beech flow me bhi 'hire' / 'need job' likh sakte ho — hum switch kar denge.",
+        "Skills: reply 1,2,3 (Cook, Maid, Shop helper) comma se.\n" +
+        "Send Hi anytime.",
     );
     return;
   }
@@ -208,15 +322,12 @@ export async function handleIncomingWhatsAppMessage(payload: unknown) {
     const flowRole = state.metadata.role as FlowRole | undefined;
     if (flowRole === "worker" && detectHiringIntent(text)) {
       const meta = { role: "recruiter" as FlowRole, _history: ["CHOOSE_ROLE" as const] };
-      await setConversationState(phone, "RECRUITER_JOB_ROLE", meta, {
+      await setConversationState(phone, "RECRUITER_JOB_CATEGORY", meta, {
         last_intent: "hiring_intent_switch",
         current_flow: "hiring_flow",
         current_mode: "recruiter",
       });
-      await sendWhatsAppText(
-        phone,
-        "Got it 👍 Hiring mode on. What kind of worker are you looking for? (e.g. Maid, Cook, Driver)",
-      );
+      await sendWhatsAppText(phone, "Hiring mode on.\n\n" + jobCategoryMenuPrompt());
       return;
     }
     if (flowRole === "recruiter" && detectJobSeekingIntent(text)) {
@@ -226,7 +337,7 @@ export async function handleIncomingWhatsAppMessage(payload: unknown) {
         current_flow: "worker_onboarding",
         current_mode: "worker",
       });
-      await sendWhatsAppText(phone, "Sure — job search mode. Aapka naam?");
+      await sendWhatsAppText(phone, "Job search mode.\n\n" + promptForStep("worker", "WORKER_NAME"));
       return;
     }
   }
@@ -276,7 +387,7 @@ export async function handleIncomingWhatsAppMessage(payload: unknown) {
       return;
     }
 
-    const nextStep: ConversationStep = role === "worker" ? "WORKER_NAME" : "RECRUITER_JOB_ROLE";
+    const nextStep: ConversationStep = role === "worker" ? "WORKER_NAME" : "RECRUITER_JOB_CATEGORY";
     await setConversationState(phone, nextStep, historyPush({ role }, "CHOOSE_ROLE"), {
       last_intent: "choose_role",
       current_flow: role === "worker" ? "worker_onboarding" : "hiring_flow",
@@ -312,20 +423,140 @@ async function handleWorkerFlow(input: {
 
   if (step === "WORKER_NAME") {
     meta.name = text.trim();
+    await setConversationState(phone, "WORKER_AGE", historyPush(meta, step));
+    await sendWhatsAppText(phone, promptForStep("worker", "WORKER_AGE"));
+    return;
+  }
+
+  if (step === "WORKER_AGE") {
+    const age = parseAge(text);
+    if (age === null) {
+      await sendWhatsAppText(phone, "Umar 16–80 ke beech number mein bhejo (e.g. 28).");
+      return;
+    }
+    meta.age = age;
+    await setConversationState(phone, "WORKER_GENDER", historyPush(meta, step));
+    await sendWhatsAppText(phone, promptForStep("worker", "WORKER_GENDER"));
+    return;
+  }
+
+  if (step === "WORKER_GENDER") {
+    const gender = parseGender(text);
+    if (!gender) {
+      await sendWhatsAppText(phone, "Reply 1–4.\n\n" + genderMenuPrompt());
+      return;
+    }
+    meta.gender = gender;
+    await setConversationState(phone, "WORKER_AADHAAR", historyPush(meta, step));
+    await sendWhatsAppText(phone, promptForStep("worker", "WORKER_AADHAAR"));
+    return;
+  }
+
+  if (step === "WORKER_AADHAAR") {
+    const hasAadhaar = parseAadhaarYesNo(text);
+    if (hasAadhaar === null) {
+      await sendWhatsAppText(phone, "Reply yes ya no.\n\n" + aadhaarPrompt());
+      return;
+    }
+    meta.hasAadhaar = hasAadhaar;
     await setConversationState(phone, "WORKER_CITY", historyPush(meta, step));
     await sendWhatsAppText(phone, promptForStep("worker", "WORKER_CITY"));
     return;
   }
 
   if (step === "WORKER_CITY") {
-    meta.city = text.trim();
-    await setConversationState(phone, "WORKER_JOB_TYPE", historyPush(meta, step));
-    await sendWhatsAppText(phone, promptForStep("worker", "WORKER_JOB_TYPE"));
+    const city = sanitizeCityInput(text);
+    if (!city) {
+      await sendWhatsAppText(phone, "Sirf city likho (e.g. Gurugram). Poora address nahi.\n\n" + cityPrompt());
+      return;
+    }
+    meta.city = city;
+    await setConversationState(phone, "WORKER_SECTOR", historyPush(meta, step));
+    await sendWhatsAppText(phone, promptForStep("worker", "WORKER_SECTOR"));
     return;
   }
 
-  if (step === "WORKER_JOB_TYPE") {
-    meta.jobType = text.trim();
+  if (step === "WORKER_SECTOR") {
+    const sector = sanitizeSectorInput(text);
+    if (!sector.ok) {
+      await sendWhatsAppText(phone, `${sector.reason}\n\n` + sectorPrompt());
+      return;
+    }
+    meta.sector = sector.value;
+    await setConversationState(phone, "WORKER_SKILLS", historyPush(meta, step));
+    await sendWhatsAppText(phone, promptForStep("worker", "WORKER_SKILLS"));
+    return;
+  }
+
+  if (step === "WORKER_SKILLS") {
+    const parsed = parseSkillSelection(text);
+    if (!parsed || (parsed.skills.length === 0 && !parsed.needsOtherInput)) {
+      await sendWhatsAppText(phone, "Samajh nahi aaya. Reply jaise: 1,2 ya Cook, Maid\n\n" + skillsMenuPrompt());
+      return;
+    }
+    meta.skills = parsed.skills;
+    if (parsed.needsOtherInput) {
+      await setConversationState(phone, "WORKER_SKILL_OTHER", historyPush(meta, step));
+      await sendWhatsAppText(phone, promptForStep("worker", "WORKER_SKILL_OTHER"));
+      return;
+    }
+    await afterWorkerSkills(meta, phone, step);
+    return;
+  }
+
+  if (step === "WORKER_SKILL_OTHER") {
+    const other = text.trim();
+    if (other.length < 2) {
+      await sendWhatsAppText(phone, "Please skill likho (e.g. Driver).");
+      return;
+    }
+    const existing = Array.isArray(meta.skills) ? (meta.skills as string[]) : [];
+    meta.skills = [...new Set([...existing, other])];
+    await afterWorkerSkills(meta, phone, step);
+    return;
+  }
+
+  if (step === "WORKER_SHIFT_PREFERENCE") {
+    const freq = parseMealFrequency(text);
+    if (!freq) {
+      await sendWhatsAppText(phone, "Reply 1–4 ya apna likho.\n\n" + mealFrequencyPrompt());
+      return;
+    }
+    meta.shiftFrequency = freq;
+    await setConversationState(phone, "WORKER_SHIFT_CUSTOM", historyPush(meta, step));
+    await sendWhatsAppText(phone, promptForStep("worker", "WORKER_SHIFT_CUSTOM"));
+    return;
+  }
+
+  if (step === "WORKER_SHIFT_CUSTOM") {
+    const awaitingCustom = meta._awaitingCustomShift === true;
+    let shiftLabel: string | null = null;
+    if (awaitingCustom) {
+      shiftLabel = text.trim();
+      if (shiftLabel.length < 3) {
+        await sendWhatsAppText(phone, "Time likho, e.g. 9am-2pm, 6pm-9pm");
+        return;
+      }
+    } else {
+      const shift = parseWorkShift(text);
+      if (!shift) {
+        await sendWhatsAppText(phone, "Reply 1–4 ya time likho (e.g. 9am-3pm).\n\n" + workShiftPrompt());
+        return;
+      }
+      if (shift.needsCustom) {
+        meta._awaitingCustomShift = true;
+        await setConversationState(phone, "WORKER_SHIFT_CUSTOM", historyPush(meta, step));
+        await sendWhatsAppText(phone, "Apna time likho (e.g. 9am-2pm, 6pm-9pm)");
+        return;
+      }
+      shiftLabel = shift.label;
+    }
+    meta.shiftHours = shiftLabel;
+    meta.availability = buildJobTiming({
+      category: "worker",
+      mealFrequency: String(meta.shiftFrequency ?? ""),
+      workShift: shiftLabel,
+    });
     await setConversationState(phone, "WORKER_EXPECTED_SALARY", historyPush(meta, step));
     await sendWhatsAppText(phone, promptForStep("worker", "WORKER_EXPECTED_SALARY"));
     return;
@@ -334,7 +565,7 @@ async function handleWorkerFlow(input: {
   if (step === "WORKER_EXPECTED_SALARY") {
     const n = parseNumber(text);
     if (n === null) {
-      await sendWhatsAppText(phone, "Please send salary as a number (e.g. 15000).");
+      await sendWhatsAppText(phone, "Salary number mein bhejo (e.g. 15000).");
       return;
     }
     meta.expectedSalary = n;
@@ -346,7 +577,7 @@ async function handleWorkerFlow(input: {
   if (step === "WORKER_EXPERIENCE") {
     const n = parseNumber(text);
     if (n === null) {
-      await sendWhatsAppText(phone, "Please send experience as a number (e.g. 2).");
+      await sendWhatsAppText(phone, "Experience number mein bhejo (e.g. 2).");
       return;
     }
     meta.experienceYears = n;
@@ -356,53 +587,90 @@ async function handleWorkerFlow(input: {
   }
 
   if (step === "WORKER_AVAILABILITY") {
-    meta.availability = text.trim();
-
-    const user = await upsertIdentityByPhone({
-      phone,
-      name: String(meta.name ?? "").trim() || null,
-      city: String(meta.city ?? "").trim() || null,
-      currentMode: "worker",
-    });
-
-    await upsertWorkerProfile({
-      userId: user.id,
-      role: String(meta.jobType ?? "").trim() || null,
-      experienceYears: typeof meta.experienceYears === "number" ? meta.experienceYears : null,
-      expectedSalary: typeof meta.expectedSalary === "number" ? meta.expectedSalary : null,
-      availability: String(meta.availability ?? "").trim() || null,
-    });
-
-    await findJobsForWorker({
-      city: (meta.city as string | undefined) ?? null,
-      jobType: (meta.jobType as string | undefined) ?? null,
-    });
-
-    await clearConversationState(phone);
-
-    const webBase = process.env.WEB_BASE_URL;
-    let loginLine = "";
-    if (webBase) {
-      const { token } = await createMagicLinkForUser({
-        userId: user.id,
-        phone: user.phone,
-      });
-      loginLine = `https://${webBase.replace(/^https?:\/\//, "").replace(/\/$/, "")}/login/${token}`;
+    const choice = parseMenuOrFreeText(text, WA_AVAILABILITY_OPTIONS);
+    if (!choice) {
+      await sendWhatsAppText(phone, "Reply 1–4.\n\n" + availabilityMenuPrompt());
+      return;
     }
+    if (choice === WA_AVAILABILITY_OPTIONS[3]?.label) {
+      await setConversationState(phone, "WORKER_AVAILABILITY_CUSTOM", historyPush({ ...meta, availabilityDraft: choice }, step));
+      await sendWhatsAppText(phone, promptForStep("worker", "WORKER_AVAILABILITY_CUSTOM"));
+      return;
+    }
+    meta.availability = meta.availability ?? choice;
+    await finishWorkerOnboarding(phone, meta);
+    return;
+  }
 
-    const msgText =
-      "Thanks! We’re finding matching jobs near you 🚀\n\n" +
-      "You can switch to hiring anytime on WhatsApp (send hire) or on the website.\n\n" +
-      "Open your profile:\n\n" +
-      (loginLine || "(link coming soon)") +
-      "\n\nWe’ll also notify you on WhatsApp when new matches arrive.";
-
-    await sendWhatsAppText(phone, msgText);
+  if (step === "WORKER_AVAILABILITY_CUSTOM") {
+    meta.availability = text.trim() || String(meta.availabilityDraft ?? "Flexible");
+    await finishWorkerOnboarding(phone, meta);
     return;
   }
 
   await clearConversationState(phone);
   await sendWhatsAppText(phone, "Send 'Hi' to start again.");
+}
+
+async function finishWorkerOnboarding(phone: string, meta: Record<string, unknown>) {
+  const skills = Array.isArray(meta.skills) ? (meta.skills as string[]).map((s) => String(s).trim()).filter(Boolean) : [];
+  const primaryRole = skills[0] ?? null;
+
+  const user = await upsertIdentityByPhone({
+    phone,
+    name: String(meta.name ?? "").trim() || null,
+    city: String(meta.city ?? "").trim() || null,
+    sector: String(meta.sector ?? "").trim() || null,
+    currentMode: "worker",
+  });
+
+  await upsertWorkerProfile({
+    userId: user.id,
+    role: primaryRole,
+    skills,
+    age: typeof meta.age === "number" ? meta.age : null,
+    gender: typeof meta.gender === "string" ? meta.gender : null,
+    hasAadhaar: typeof meta.hasAadhaar === "boolean" ? meta.hasAadhaar : null,
+    experienceYears: typeof meta.experienceYears === "number" ? meta.experienceYears : null,
+    expectedSalary: typeof meta.expectedSalary === "number" ? meta.expectedSalary : null,
+    availability: String(meta.availability ?? "").trim() || null,
+  });
+
+  const matches = await findJobsForWorker({
+    city: (meta.city as string | undefined) ?? null,
+    skills,
+  });
+
+  await clearConversationState(phone);
+
+  const loginLine = await magicLoginUrl(user.id, user.phone);
+  const skillLine = skills.length > 0 ? skills.join(", ") : "your skills";
+  const matchLine =
+    matches.length > 0
+      ? `Abhi ${matches.length} job${matches.length > 1 ? "s" : ""} match ho rahi hain (${skillLine}).`
+      : "Nayi jobs aate hi WhatsApp pe batayenge.";
+
+  const age = typeof meta.age === "number" ? meta.age : null;
+  const gender = typeof meta.gender === "string" ? genderLabel(meta.gender) : "";
+  const aadhaar =
+    typeof meta.hasAadhaar === "boolean" ? (meta.hasAadhaar ? "Aadhaar: yes" : "Aadhaar: no") : "";
+  const area = formatPublicLocation(
+    String(meta.city ?? ""),
+    String(meta.sector ?? ""),
+  );
+
+  await sendWhatsAppText(
+    phone,
+    `Profile ready ✅ (${skillLine})\n` +
+      (area ? `Area: ${area}\n` : "") +
+      (age != null ? `Age: ${age}\n` : "") +
+      (gender ? `Gender: ${gender}\n` : "") +
+      (aadhaar ? `${aadhaar}\n` : "") +
+      `\n${matchLine}\n\n` +
+      "Website par jobs dekho:\n" +
+      (loginLine || "(link coming soon)") +
+      "\n\nHiring ke liye kabhi bhi *hire* likho.",
+  );
 }
 
 async function handleRecruiterFlow(input: {
@@ -414,15 +682,56 @@ async function handleRecruiterFlow(input: {
   const { phone, text, step } = input;
   const meta = { ...input.metadata };
 
-  if (step === "RECRUITER_JOB_ROLE") {
-    meta.jobTitle = text.trim();
+  if (step === "RECRUITER_JOB_CATEGORY") {
+    const parsed = parseSingleCategoryChoice(text);
+    if (!parsed) {
+      await sendWhatsAppText(phone, "Reply 1, 2, 3 ya 4.\n\n" + jobCategoryMenuPrompt());
+      return;
+    }
+    if (parsed.needsOtherInput) {
+      await setConversationState(phone, "RECRUITER_JOB_CATEGORY_OTHER", historyPush(meta, step));
+      await sendWhatsAppText(phone, promptForStep("recruiter", "RECRUITER_JOB_CATEGORY_OTHER"));
+      return;
+    }
+    meta.jobCategory = parsed.category;
+    meta.jobTitle = parsed.title;
+    await setConversationState(phone, "RECRUITER_CITY", historyPush(meta, step));
+    await sendWhatsAppText(phone, promptForStep("recruiter", "RECRUITER_CITY"));
+    return;
+  }
+
+  if (step === "RECRUITER_JOB_CATEGORY_OTHER") {
+    const custom = text.trim();
+    if (custom.length < 2) {
+      await sendWhatsAppText(phone, "Please role/category likho.");
+      return;
+    }
+    meta.jobCategory = custom;
+    meta.jobTitle = custom;
     await setConversationState(phone, "RECRUITER_CITY", historyPush(meta, step));
     await sendWhatsAppText(phone, promptForStep("recruiter", "RECRUITER_CITY"));
     return;
   }
 
   if (step === "RECRUITER_CITY") {
-    meta.city = text.trim();
+    const city = sanitizeCityInput(text);
+    if (!city) {
+      await sendWhatsAppText(phone, "Sirf city likho (e.g. Gurugram).\n\n" + cityPrompt());
+      return;
+    }
+    meta.city = city;
+    await setConversationState(phone, "RECRUITER_SECTOR", historyPush(meta, step));
+    await sendWhatsAppText(phone, promptForStep("recruiter", "RECRUITER_SECTOR"));
+    return;
+  }
+
+  if (step === "RECRUITER_SECTOR") {
+    const sector = sanitizeSectorInput(text);
+    if (!sector.ok) {
+      await sendWhatsAppText(phone, `${sector.reason}\n\n` + sectorPrompt());
+      return;
+    }
+    meta.sector = sector.value;
     await setConversationState(phone, "RECRUITER_SALARY", historyPush(meta, step));
     await sendWhatsAppText(phone, promptForStep("recruiter", "RECRUITER_SALARY"));
     return;
@@ -431,7 +740,7 @@ async function handleRecruiterFlow(input: {
   if (step === "RECRUITER_SALARY") {
     const n = parseNumber(text);
     if (n === null) {
-      await sendWhatsAppText(phone, "Please send salary as a number (e.g. 18000).");
+      await sendWhatsAppText(phone, "Salary number mein bhejo (e.g. 18000).");
       return;
     }
     meta.salary = n;
@@ -443,28 +752,136 @@ async function handleRecruiterFlow(input: {
   if (step === "RECRUITER_ACCOMMODATION") {
     const yn = parseYesNo(text);
     if (yn === null) {
-      await sendWhatsAppText(phone, "Please reply yes or no (haan/nahi also ok).");
+      await sendWhatsAppText(phone, "Reply yes ya no (haan/nahi bhi chalega).");
       return;
     }
     meta.accommodation = yn;
-    await setConversationState(phone, "RECRUITER_TIMING", historyPush(meta, step));
-    await sendWhatsAppText(phone, promptForStep("recruiter", "RECRUITER_TIMING"));
+    await afterRecruiterAccommodation(meta, phone, step);
+    return;
+  }
+
+  if (step === "RECRUITER_MIN_AGE") {
+    const minAge = parseAge(text);
+    if (minAge === null) {
+      await sendWhatsAppText(phone, "Minimum age number mein bhejo (16–80, e.g. 20).");
+      return;
+    }
+    meta.minAge = minAge;
+    await setConversationState(phone, "RECRUITER_MAX_AGE", historyPush(meta, step));
+    await sendWhatsAppText(phone, promptForStep("recruiter", "RECRUITER_MAX_AGE"));
+    return;
+  }
+
+  if (step === "RECRUITER_MAX_AGE") {
+    const maxAge = parseMaxAge(text);
+    if (text.trim() && maxAge === null && !["0", "skip", "none"].includes(normalizeText(text))) {
+      await sendWhatsAppText(phone, "Max age 16–80, ya *0* / *skip* agar limit nahi.");
+      return;
+    }
+    const minAge = typeof meta.minAge === "number" ? meta.minAge : null;
+    if (maxAge != null && minAge != null && maxAge < minAge) {
+      await sendWhatsAppText(phone, "Max age minimum se kam nahi ho sakti. Dobara max age bhejo.");
+      return;
+    }
+    meta.maxAge = maxAge;
+    await setConversationState(phone, "RECRUITER_PREFERRED_GENDER", historyPush(meta, step));
+    await sendWhatsAppText(phone, promptForStep("recruiter", "RECRUITER_PREFERRED_GENDER"));
+    return;
+  }
+
+  if (step === "RECRUITER_PREFERRED_GENDER") {
+    const pref = parseJobGenderPreference(text);
+    if (!pref) {
+      await sendWhatsAppText(phone, "Reply 1–3.\n\n" + jobGenderPreferencePrompt());
+      return;
+    }
+    meta.preferredGender = pref;
+    await setConversationState(phone, "RECRUITER_AADHAAR_REQUIRED", historyPush(meta, step));
+    await sendWhatsAppText(phone, promptForStep("recruiter", "RECRUITER_AADHAAR_REQUIRED"));
+    return;
+  }
+
+  if (step === "RECRUITER_AADHAAR_REQUIRED") {
+    const required = parseAadhaarYesNo(text);
+    if (required === null) {
+      await sendWhatsAppText(phone, "Reply yes ya no.\n\n" + jobAadhaarRequiredPrompt());
+      return;
+    }
+    meta.requiredDocuments = required ? [DOCUMENT_AADHAAR] : [];
+    await afterRecruiterRequirements(meta, phone, step);
+    return;
+  }
+
+  if (step === "RECRUITER_MEAL_FREQUENCY") {
+    const freq = parseMealFrequency(text);
+    if (!freq) {
+      await sendWhatsAppText(phone, "Reply 1–4.\n\n" + mealFrequencyPrompt());
+      return;
+    }
+    meta.mealFrequency = freq;
+    await setConversationState(phone, "RECRUITER_WORK_SHIFT", historyPush(meta, step));
+    await sendWhatsAppText(phone, promptForStep("recruiter", "RECRUITER_WORK_SHIFT"));
+    return;
+  }
+
+  if (step === "RECRUITER_WORK_SHIFT") {
+    const shift = parseWorkShift(text);
+    if (!shift) {
+      await sendWhatsAppText(phone, "Reply 1–4.\n\n" + workShiftPrompt());
+      return;
+    }
+    if (shift.needsCustom) {
+      await setConversationState(phone, "RECRUITER_WORK_SHIFT_CUSTOM", historyPush(meta, step));
+      await sendWhatsAppText(phone, promptForStep("recruiter", "RECRUITER_WORK_SHIFT_CUSTOM"));
+      return;
+    }
+    meta.workShift = shift.label;
+    await setConversationState(phone, "RECRUITER_URGENCY", historyPush(meta, step));
+    await sendWhatsAppText(phone, promptForStep("recruiter", "RECRUITER_URGENCY"));
+    return;
+  }
+
+  if (step === "RECRUITER_WORK_SHIFT_CUSTOM") {
+    const custom = text.trim();
+    if (custom.length < 3) {
+      await sendWhatsAppText(phone, "Time likho, e.g. 9am-2pm, 6pm-9pm");
+      return;
+    }
+    meta.workShiftCustom = custom;
+    await setConversationState(phone, "RECRUITER_URGENCY", historyPush(meta, step));
+    await sendWhatsAppText(phone, promptForStep("recruiter", "RECRUITER_URGENCY"));
     return;
   }
 
   if (step === "RECRUITER_TIMING") {
-    meta.timing = text.trim();
+    meta.shopTiming = text.trim();
     await setConversationState(phone, "RECRUITER_URGENCY", historyPush(meta, step));
     await sendWhatsAppText(phone, promptForStep("recruiter", "RECRUITER_URGENCY"));
     return;
   }
 
   if (step === "RECRUITER_URGENCY") {
-    meta.urgency = text.trim();
+    const urgency =
+      parseMenuOrFreeText(text, WA_URGENCY_OPTIONS) ?? (text.trim() || "Flexible");
+    meta.urgency = urgency;
+
+    const category = String(meta.jobCategory ?? "Job");
+    const city = String(meta.city ?? "").trim();
+    const timing = isMaidOrCookCategory(category)
+      ? buildJobTiming({
+          category,
+          mealFrequency: String(meta.mealFrequency ?? ""),
+          workShift: String(meta.workShift ?? ""),
+          customShift: String(meta.workShiftCustom ?? ""),
+        })
+      : String(meta.shopTiming ?? "").trim() || null;
+
+    const jobSector = String(meta.sector ?? "").trim() || null;
 
     const user = await upsertIdentityByPhone({
       phone,
-      city: String(meta.city ?? "").trim() || null,
+      city: city || null,
+      sector: jobSector,
       currentMode: "recruiter",
     });
 
@@ -475,36 +892,56 @@ async function handleRecruiterFlow(input: {
       companyName: null,
     });
 
+    const minAge = typeof meta.minAge === "number" ? meta.minAge : null;
+    const maxAge = typeof meta.maxAge === "number" ? meta.maxAge : null;
+    const preferredGender = typeof meta.preferredGender === "string" ? meta.preferredGender : "any";
+    const requiredDocuments = Array.isArray(meta.requiredDocuments) ? (meta.requiredDocuments as string[]) : [];
+
     await createJob({
       recruiterId: user.id,
-      title: String(meta.jobTitle ?? "").trim() || "Job",
-      city: String(meta.city ?? "").trim() || null,
+      title: String(meta.jobTitle ?? category).trim() || category,
+      city: city || null,
+      sector: jobSector,
       salary: typeof meta.salary === "number" ? meta.salary : null,
-      timing: String(meta.timing ?? "").trim() || null,
+      timing,
       accommodation: typeof meta.accommodation === "boolean" ? meta.accommodation : null,
-      urgency: String(meta.urgency ?? "").trim() || null,
+      urgency,
+      category,
+      minAge,
+      maxAge,
+      preferredGender,
+      requiredDocuments,
+      description: buildJobDescription({
+        category,
+        city,
+        mealFrequency: String(meta.mealFrequency ?? ""),
+        timing,
+        minAge,
+        maxAge,
+        preferredGender,
+        requiredDocuments,
+      }),
     });
 
     await clearConversationState(phone);
 
-    const webBase = process.env.WEB_BASE_URL;
-    let loginLine = "";
-    if (webBase) {
-      const { token } = await createMagicLinkForUser({
-        userId: user.id,
-        phone: user.phone,
-      });
-      loginLine = `https://${webBase.replace(/^https?:\/\//, "").replace(/\/$/, "")}/login/${token}`;
+    const loginLine = await magicLoginUrl(user.id, user.phone);
+    const reqBits: string[] = [];
+    if (minAge != null || maxAge != null) {
+      reqBits.push(minAge != null && maxAge != null ? `Age ${minAge}–${maxAge}` : minAge != null ? `Age ${minAge}+` : `Age ≤${maxAge}`);
     }
+    if (preferredGender && preferredGender !== "any") reqBits.push(genderLabel(preferredGender));
+    if (requiredDocuments.includes(DOCUMENT_AADHAAR)) reqBits.push("Aadhaar required");
 
-    const msgText =
-      "Thanks! Job posted — we’ll find candidates 🚀\n\n" +
-      "You can look for work for yourself anytime (send find jobs) or on the website.\n\n" +
-      "Manage here:\n\n" +
-      (loginLine || "(link coming soon)") +
-      "\n\nWe’ll notify you on WhatsApp for new matches.";
-
-    await sendWhatsAppText(phone, msgText);
+    await sendWhatsAppText(
+      phone,
+      `Job posted ✅ — ${category} in ${formatPublicLocation(city, jobSector) || city || "your city"}\n` +
+        (timing ? `Timing: ${timing}\n` : "") +
+        (reqBits.length ? `Requirements: ${reqBits.join(" · ")}\n` : "") +
+        "\nManage / edit on website:\n" +
+        (loginLine || "(link coming soon)") +
+        "\n\nWorkers ko dikh jayegi. *find jobs* se aap bhi kaam dhoondh sakte ho.",
+    );
     return;
   }
 

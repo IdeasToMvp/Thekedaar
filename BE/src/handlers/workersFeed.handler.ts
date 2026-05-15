@@ -1,6 +1,7 @@
 import type { Request, Response } from "express";
 import { z } from "zod";
 import type { RequestWithSession } from "../middleware/requireSession";
+import { getUserCapabilities } from "../services/user.service";
 import { countWorkersForFeed, listWorkersForFeed } from "../services/workers.service";
 
 const WorkersFeedQuerySchema = z.object({
@@ -13,10 +14,17 @@ const WorkersFeedQuerySchema = z.object({
 
 function workersForViewer(
   workers: Awaited<ReturnType<typeof listWorkersForFeed>>["workers"],
-  authenticated: boolean,
+  opts: { viewerId?: string; viewerCanHire: boolean },
 ) {
-  if (authenticated) return workers;
-  return workers.map(({ contactWaDigits: _wa, ...worker }) => worker);
+  return workers.map((w) => {
+    const isOwn = opts.viewerId != null && w.id === opts.viewerId;
+    if (isOwn) return w;
+    if (opts.viewerCanHire) {
+      const { contactWaDigits: _wa, ...rest } = w;
+      return rest;
+    }
+    return w;
+  });
 }
 
 export async function handleWorkersFeedGet(req: Request, res: Response): Promise<void> {
@@ -42,8 +50,14 @@ export async function handleWorkersFeedGet(req: Request, res: Response): Promise
       viewerId: session?.sub,
     });
 
+    let viewerCanHire = false;
+    if (session?.sub) {
+      const caps = await getUserCapabilities(session.sub);
+      viewerCanHire = caps.can_hire;
+    }
+
     res.status(200).json({
-      workers: workersForViewer(workers, Boolean(session)),
+      workers: workersForViewer(workers, { viewerId: session?.sub, viewerCanHire }),
       total,
       offset,
       limit,

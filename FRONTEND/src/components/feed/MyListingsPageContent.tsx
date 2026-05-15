@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useState } from "react";
 import type { ActivityResponse } from "@/lib/jobs/activity";
 import type { FeedJob } from "@/lib/jobs/types";
-import { isRecruiterView } from "@/lib/jobs/viewerRole";
+import { isEmployerAccount } from "@/lib/auth/accountRole";
 import { useFeedUser } from "./FeedUserProvider";
 import { AppNavbar } from "./AppNavbar";
 import { MyListingsSection } from "./MyListingsSection";
@@ -39,13 +39,13 @@ export function MyListingsPageContent() {
   }, []);
 
   useEffect(() => {
-    if (!user?.can_hire) {
+    if (!user || !isEmployerAccount(user)) {
       setListings([]);
       setListingsLoading(false);
       return;
     }
     loadListings();
-  }, [user?.can_hire, user?.id, loadListings]);
+  }, [user, loadListings]);
 
   const showNavbar = user || userLoading;
 
@@ -59,11 +59,7 @@ export function MyListingsPageContent() {
 
       <main className="min-h-0 flex-1 overflow-y-auto">
         <div className="mx-auto max-w-[1400px] px-4 py-6 pb-24 sm:px-6">
-          {!userLoading && user && !user.can_hire ? (
-            <p className="rounded-xl border border-dashed border-border bg-surface px-4 py-12 text-center text-sm text-muted">
-              My listings are available for employer accounts. Post a job or complete hiring setup on WhatsApp.
-            </p>
-          ) : (
+          {!userLoading && user && !isEmployerAccount(user) ? null : (
             <>
               {error ? (
                 <p className="mb-4 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">{error}</p>
@@ -81,7 +77,7 @@ export function MyListingsPageContent() {
         </div>
       </main>
 
-      {user && isRecruiterView(user) ? (
+      {user && isEmployerAccount(user) ? (
         <>
           <PostJobFab
             onClick={() => {

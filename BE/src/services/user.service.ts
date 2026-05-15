@@ -7,6 +7,7 @@ export type UserRow = {
   phone: string;
   name: string | null;
   city: string | null;
+  sector: string | null;
   current_mode: AppMode;
   subscription_plan?: string | null;
 };
@@ -15,6 +16,9 @@ export type WorkerProfileRow = {
   user_id: string;
   role: string | null;
   skills?: string[] | null;
+  age: number | null;
+  gender: string | null;
+  has_aadhaar: boolean | null;
   experience_years: number | null;
   expected_salary: number | null;
   availability: string | null;
@@ -39,6 +43,7 @@ export async function upsertIdentityByPhone(input: {
   phone: string;
   name?: string | null;
   city?: string | null;
+  sector?: string | null;
   currentMode?: AppMode;
 }) {
   const sb = supabaseAdmin();
@@ -51,11 +56,12 @@ export async function upsertIdentityByPhone(input: {
         phone: input.phone,
         name: input.name ?? existing?.name ?? null,
         city: input.city ?? existing?.city ?? null,
+        sector: input.sector ?? existing?.sector ?? null,
         current_mode: input.currentMode ?? existing?.current_mode ?? "worker",
       },
       { onConflict: "phone" },
     )
-    .select("id,phone,name,city,current_mode,subscription_plan")
+    .select("id,phone,name,city,sector,current_mode,subscription_plan")
     .single();
 
   if (error) throw error;
@@ -124,10 +130,14 @@ export async function updateUserProfile(input: {
   userId: string;
   name?: string | null;
   city?: string | null;
+  sector?: string | null;
   current_mode?: AppMode;
   worker?: {
     role?: string | null;
     skills?: string[] | null;
+    age?: number | null;
+    gender?: string | null;
+    has_aadhaar?: boolean | null;
     experience_years?: number | null;
     expected_salary?: number | null;
     availability?: string | null;
@@ -148,6 +158,7 @@ export async function updateUserProfile(input: {
     .update({
       name: input.name !== undefined ? input.name : existing.name,
       city: input.city !== undefined ? input.city : existing.city,
+      sector: input.sector !== undefined ? input.sector : existing.sector,
       current_mode: input.current_mode ?? existing.current_mode,
     })
     .eq("id", input.userId);
@@ -171,6 +182,9 @@ export async function updateUserProfile(input: {
         user_id: input.userId,
         role: skills[0] ?? null,
         skills,
+        age: w.age !== undefined ? w.age : prev?.age ?? null,
+        gender: w.gender !== undefined ? w.gender : prev?.gender ?? null,
+        has_aadhaar: w.has_aadhaar !== undefined ? w.has_aadhaar : prev?.has_aadhaar ?? null,
         experience_years:
           w.experience_years !== undefined ? w.experience_years : prev?.experience_years ?? null,
         expected_salary: w.expected_salary !== undefined ? w.expected_salary : prev?.expected_salary ?? null,

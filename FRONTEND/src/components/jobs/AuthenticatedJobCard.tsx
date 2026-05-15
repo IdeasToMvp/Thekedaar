@@ -4,6 +4,8 @@ import { useState } from "react";
 import type { MeUser } from "@/lib/auth/types";
 import type { FeedJob, FeedLimits } from "@/lib/jobs/types";
 import { formatRelativeTime, formatSalary } from "@/lib/formatRelativeTime";
+import { formatCandidateRequirements, formatUrgencyLabel } from "@/lib/jobs/listingDetails";
+import { workerOrJobLocation } from "@/lib/location/publicLocation";
 import { applyMessage, buildWhatsAppUrl, hireMessage } from "@/lib/jobs/whatsapp";
 
 const urgencyStyles: Record<FeedJob["urgency"], string> = {
@@ -122,9 +124,9 @@ export function AuthenticatedJobCard({
           </div>
         </div>
         <span
-          className={`shrink-0 rounded-full px-2.5 py-1 text-xs font-medium capitalize ${urgencyStyles[job.urgency]}`}
+          className={`shrink-0 rounded-full px-2.5 py-1 text-xs font-medium ${urgencyStyles[job.urgency]}`}
         >
-          {job.urgency} priority
+          {formatUrgencyLabel(job)}
         </span>
       </div>
 
@@ -134,7 +136,9 @@ export function AuthenticatedJobCard({
         <dl className="mt-4 grid grid-cols-2 gap-x-3 gap-y-2.5 text-sm">
           <div className="min-w-0">
             <dt className="text-xs font-medium text-muted">City</dt>
-            <dd className="mt-0.5 line-clamp-2 break-words font-medium text-foreground">{job.city || "—"}</dd>
+            <dd className="mt-0.5 line-clamp-2 break-words font-medium text-foreground">
+              {workerOrJobLocation({ publicLocation: job.publicLocation, city: job.city, sector: job.sector })}
+            </dd>
           </div>
           <div className="min-w-0">
             <dt className="text-xs font-medium text-muted">Category</dt>
@@ -144,6 +148,28 @@ export function AuthenticatedJobCard({
             <dt className="text-xs font-medium text-muted">Salary</dt>
             <dd className="mt-0.5 font-semibold text-brand">{formatSalary(job.salaryPerMonth)}</dd>
           </div>
+          <div className="min-w-0">
+            <dt className="text-xs font-medium text-muted">Start</dt>
+            <dd className="mt-0.5 text-foreground">{formatUrgencyLabel(job)}</dd>
+          </div>
+          {job.timing?.trim() ? (
+            <div className="col-span-2 min-w-0">
+              <dt className="text-xs font-medium text-muted">Timing</dt>
+              <dd className="mt-0.5 break-words text-foreground">{job.timing}</dd>
+            </div>
+          ) : null}
+          {job.accommodation != null ? (
+            <div className="min-w-0">
+              <dt className="text-xs font-medium text-muted">Stay</dt>
+              <dd className="mt-0.5 text-foreground">{job.accommodation ? "Provided" : "Not provided"}</dd>
+            </div>
+          ) : null}
+          {formatCandidateRequirements(job) ? (
+            <div className={job.accommodation != null ? "min-w-0" : "col-span-2 min-w-0"}>
+              <dt className="text-xs font-medium text-muted">Looking for</dt>
+              <dd className="mt-0.5 break-words text-foreground">{formatCandidateRequirements(job)}</dd>
+            </div>
+          ) : null}
           <div className="min-w-0">
             <dt className="text-xs font-medium text-muted">Posted</dt>
             <dd className="mt-0.5 text-muted">{formatRelativeTime(job.postedAt)}</dd>

@@ -4,6 +4,8 @@ export type FeedJob = {
   id: string;
   title: string;
   city: string;
+  sector?: string;
+  publicLocation?: string;
   category: string;
   salaryPerMonth: number;
   postedAt: string;
@@ -14,6 +16,10 @@ export type FeedJob = {
   urgencyRaw?: string | null;
   timing?: string | null;
   accommodation?: boolean | null;
+  minAge?: number | null;
+  maxAge?: number | null;
+  preferredGender?: string | null;
+  requiredDocuments?: string[];
   posterSubscription: { plan: string; features: Record<string, boolean> };
   contactWaDigits?: string;
   /** Set when the signed-in user posted this job */

@@ -1,9 +1,11 @@
 import { supabaseAdmin } from "./supabase.service";
+import { formatPublicLocation } from "../utils/publicLocation";
 
 export type WorkerUserJoin = {
   id: string;
   name: string | null;
   city: string | null;
+  sector: string | null;
   phone: string;
   created_at: string;
 };
@@ -13,6 +15,9 @@ export type WorkerFeedRowRaw = {
   user_id: string;
   role: string | null;
   skills?: string[] | null;
+  age: number | null;
+  gender: string | null;
+  has_aadhaar: boolean | null;
   experience_years: number | null;
   expected_salary: number | null;
   availability: string | null;
@@ -39,6 +44,11 @@ export type WorkerFeedApiWorker = {
   role: string;
   skills: string[];
   city: string;
+  sector: string;
+  publicLocation: string;
+  age: number | null;
+  gender: string | null;
+  hasAadhaar: boolean | null;
   expectedSalary: number;
   experienceYears: number | null;
   availability: string;
@@ -67,6 +77,11 @@ export function mapWorkerToFeedApi(row: WorkerFeedRowRaw, viewerId?: string): Wo
     role: skills[0] ?? "General",
     skills,
     city: u.city?.trim() || "",
+    sector: u.sector?.trim() || "",
+    publicLocation: formatPublicLocation(u.city, u.sector),
+    age: row.age ?? null,
+    gender: row.gender ?? null,
+    hasAadhaar: row.has_aadhaar ?? null,
     expectedSalary: row.expected_salary ?? 0,
     experienceYears: row.experience_years,
     availability: row.availability?.trim() || "Not specified",
@@ -96,7 +111,7 @@ export async function listWorkersForFeed(input: {
 }): Promise<{ workers: WorkerFeedApiWorker[] }> {
   const sb = supabaseAdmin();
   let q = sb.from("worker_profiles").select(
-    "user_id, role, skills, experience_years, expected_salary, availability, users!inner(id, name, city, phone, created_at)",
+    "user_id, role, skills, age, gender, has_aadhaar, experience_years, expected_salary, availability, users!inner(id, name, city, sector, phone, created_at)",
   );
 
   if (input.city) q = q.ilike("users.city", input.city);

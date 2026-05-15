@@ -90,20 +90,25 @@ export function roleIcon(roleId: string): string {
   return getLaunchRole(roleId)?.icon ?? "💼";
 }
 
-function categoryMatchesRole(category: string, role: LaunchRole): boolean {
-  const c = category.trim().toLowerCase();
-  if (!c) return false;
+function textMatchesRole(text: string, role: LaunchRole): boolean {
+  const c = text.trim().toLowerCase();
+  if (!c || c === "general") return false;
   const targets = [role.apiCategory, ...(role.aliases ?? [])].map((s) => s.toLowerCase());
   return targets.some((t) => c === t || c.includes(t) || t.includes(c));
 }
 
+/** Match launch role from category and/or title (WhatsApp jobs often store category as General). */
+function jobMatchesRole(job: FeedJob, role: LaunchRole): boolean {
+  return textMatchesRole(job.category, role) || textMatchesRole(job.title, role);
+}
+
 export function jobMatchesLaunchRole(job: FeedJob, roleId: string): boolean {
   if (!roleId) {
-    return ACTIVE_MARKET.roles.some((r) => categoryMatchesRole(job.category, r));
+    return ACTIVE_MARKET.roles.some((r) => jobMatchesRole(job, r));
   }
   const role = getLaunchRole(roleId);
   if (!role) return true;
-  return categoryMatchesRole(job.category, role);
+  return jobMatchesRole(job, role);
 }
 
 export function jobMatchesLaunchCity(job: FeedJob, cityId: string): boolean {
@@ -141,7 +146,7 @@ export function launchHighlights(jobs: FeedJob[]): { label: string; sub: string 
   }
   for (const j of jobs) {
     for (const role of ACTIVE_MARKET.roles) {
-      if (categoryMatchesRole(j.category, role)) {
+      if (jobMatchesRole(j, role)) {
         counts.set(role.id, (counts.get(role.id) ?? 0) + 1);
         break;
       }
