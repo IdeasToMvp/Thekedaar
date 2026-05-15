@@ -5,7 +5,6 @@ import type { FeedWorker, HiredWorker } from "@/lib/workers/types";
 import { formatRelativeTime, formatSalary } from "@/lib/formatRelativeTime";
 import { workerOrJobLocation } from "@/lib/location/publicLocation";
 import { formatPhoneDisplay } from "@/lib/workers/formatPhone";
-import { buildWhatsAppUrl, workerContactMessage } from "@/lib/workers/whatsapp";
 import { WorkerListingMeta } from "./WorkerListingMeta";
 
 type Mode = "view" | "hire";
@@ -48,9 +47,7 @@ export function WorkerProfileModal({ open, mode, worker, onClose }: Props) {
     sector: worker.sector,
   });
   const hired = mode === "hire" && isHiredWorker(worker);
-  const waDigits = hired ? worker.contactWaDigits?.replace(/\D/g, "") ?? "" : "";
-  const canWhatsApp = waDigits.length >= 10;
-  const primarySkill = skills[0] ?? worker.role ?? "Worker";
+  const phoneDigits = hired ? worker.phone.replace(/\D/g, "") : "";
 
   return (
     <div
@@ -124,21 +121,15 @@ export function WorkerProfileModal({ open, mode, worker, onClose }: Props) {
           {hired ? (
             <section className="mt-5 rounded-xl border border-brand/25 bg-brand/5 p-4">
               <p className="text-xs font-semibold uppercase tracking-wider text-brand-dark">Contact</p>
-              <p className="mt-1 text-base font-semibold text-foreground">{formatPhoneDisplay(worker.phone)}</p>
-              {canWhatsApp ? (
+              {phoneDigits.length >= 10 ? (
                 <a
-                  href={buildWhatsAppUrl(
-                    waDigits,
-                    workerContactMessage(primarySkill, worker.city || location || ""),
-                  )}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="mt-3 flex min-h-11 w-full items-center justify-center gap-2 rounded-full border-2 border-[#25D366] bg-white text-sm font-semibold text-[#128C7E] transition hover:bg-[#25D366]/10"
+                  href={`tel:+${phoneDigits.startsWith("91") ? phoneDigits : `91${phoneDigits}`}`}
+                  className="mt-2 inline-block text-base font-semibold text-brand hover:underline"
                 >
-                  WhatsApp
+                  {formatPhoneDisplay(worker.phone)}
                 </a>
               ) : (
-                <p className="mt-2 text-xs text-muted">WhatsApp number not available.</p>
+                <p className="mt-1 text-base font-semibold text-foreground">{formatPhoneDisplay(worker.phone)}</p>
               )}
             </section>
           ) : (

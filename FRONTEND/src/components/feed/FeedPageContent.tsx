@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
-import type { FeedJob, FeedLimits, FeedResponse } from "@/lib/jobs/types";
+import type { ApplicationStatus, FeedJob, FeedResponse } from "@/lib/jobs/types";
 import type { FeedWorker, HiredWorker, WorkerHireLimits, WorkersFeedResponse } from "@/lib/workers/types";
 import { isEmployerAccount, isWorkerAccount } from "@/lib/auth/accountRole";
 import { filterWorkersBySalary, filterWorkersToLaunchMarket } from "@/lib/workers/filterWorkers";
@@ -276,10 +276,10 @@ export function FeedPageContent() {
                   <CardSkeletonGrid />
                 ) : (
                   <>
-                    <ul className="mt-6 grid list-none grid-cols-1 gap-3 sm:grid-cols-2 sm:items-stretch">
+                    <ul className="mt-6 grid list-none grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3 sm:items-stretch">
                       {salaryFilteredJobs.map((job) => (
                         <li key={job.id} className="flex min-w-0">
-                          <FeedJobCard job={job} user={user} onContactRecorded={handleContactRecorded} />
+                          <FeedJobCard job={job} user={user} onApplicationUpdated={handleApplicationUpdated} />
                         </li>
                       ))}
                     </ul>
@@ -311,7 +311,7 @@ export function FeedPageContent() {
               <CardSkeletonGrid />
             ) : (
               <>
-                <ul className="mt-6 grid list-none grid-cols-1 gap-3 sm:grid-cols-2 sm:items-stretch">
+                <ul className="mt-6 grid list-none grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3 sm:items-stretch">
                   {salaryFilteredWorkers.map((w) => (
                     <li key={w.id} className="flex min-w-0">
                       <WorkerFeedCard
@@ -352,7 +352,7 @@ export function FeedPageContent() {
 
 function CardSkeletonGrid() {
   return (
-    <ul className="mt-6 grid list-none grid-cols-1 gap-3 sm:grid-cols-2">
+    <ul className="mt-6 grid list-none grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
       {Array.from({ length: 4 }).map((_, i) => (
         <li key={i}>
           <div className="h-36 animate-pulse rounded-2xl bg-slate-200/60" />

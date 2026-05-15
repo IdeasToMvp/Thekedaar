@@ -1,28 +1,36 @@
 "use client";
 
 import { useState } from "react";
+import type { ApplicationStatus } from "@/lib/jobs/types";
 import type { FeedJob, FeedLimits } from "@/lib/jobs/types";
 import type { MeUser } from "@/lib/auth/types";
 import { primaryJobAction } from "@/lib/jobs/viewerRole";
+import { useJobApply } from "@/lib/jobs/useJobApply";
 import { useJobContact } from "@/lib/jobs/useJobContact";
 import { JobListingViewModal } from "./JobListingViewModal";
 
 type Props = {
   job: FeedJob;
   user: MeUser;
-  onContactRecorded: (jobId: string, limits?: FeedLimits) => void;
+  onApplicationUpdated: (jobId: string, status: ApplicationStatus) => void;
+  onContactRecorded?: (jobId: string, limits?: FeedLimits) => void;
 };
 
-export function JobCardActions({ job, user, onContactRecorded }: Props) {
+export function JobCardActions({ job, user, onApplicationUpdated, onContactRecorded }: Props) {
   const action = primaryJobAction(user);
-  const { loading, error, contacted, primaryLabel, handlePrimary, hasAction } = useJobContact(
-    job,
-    action,
-    onContactRecorded,
-  );
+  const apply = useJobApply(job, onApplicationUpdated);
+  const hire = useJobContact(job, action === "hire" ? "hire" : null, onContactRecorded ?? (() => {}));
   const [viewOpen, setViewOpen] = useState(false);
 
-  if (!hasAction) {
+  const isApply = action === "apply";
+  const loading = isApply ? apply.loading : hire.loading !== null;
+  const error = isApply ? apply.error : hire.error;
+  const primaryLabel = isApply ? apply.primaryLabel : hire.primaryLabel;
+  const handlePrimary = isApply ? apply.handleApply : hire.handlePrimary;
+  const showCheck = isApply ? apply.status === "pending" || apply.status === "approved" : hire.contacted;
+  const disabled = isApply ? apply.disabled : hire.loading !== null;
+
+  if (!action) {
     return (
       <p className="mt-auto pt-3 text-xs text-muted">Complete your profile on WhatsApp to apply for jobs.</p>
     );
@@ -36,6 +44,9 @@ export function JobCardActions({ job, user, onContactRecorded }: Props) {
             {error}
           </p>
         ) : null}
+        {isApply && apply.statusHint ? (
+          <p className="text-[11px] leading-snug text-muted">{apply.statusHint}</p>
+        ) : null}
         <div className="flex gap-2">
           <button
             type="button"
@@ -47,11 +58,11 @@ export function JobCardActions({ job, user, onContactRecorded }: Props) {
           <button
             type="button"
             onClick={handlePrimary}
-            disabled={loading !== null}
+            disabled={disabled}
             className="min-h-9 flex-1 rounded-full bg-brand-dark text-sm font-semibold text-white transition hover:opacity-95 disabled:opacity-50"
           >
-            {loading === action ? "…" : primaryLabel}
-            {contacted ? " ✓" : ""}
+            {loading ? "…" : primaryLabel}
+            {showCheck ? " ✓" : ""}
           </button>
         </div>
       </div>
@@ -61,6 +72,7 @@ export function JobCardActions({ job, user, onContactRecorded }: Props) {
         job={job}
         user={user}
         onClose={() => setViewOpen(false)}
+        onApplicationUpdated={onApplicationUpdated}
         onContactRecorded={onContactRecorded}
       />
     </>

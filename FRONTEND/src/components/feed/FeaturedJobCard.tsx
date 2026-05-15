@@ -1,5 +1,5 @@
 import Link from "next/link";
-import type { FeedJob, FeedLimits } from "@/lib/jobs/types";
+import type { ApplicationStatus, FeedJob } from "@/lib/jobs/types";
 import type { MeUser } from "@/lib/auth/types";
 import { formatRelativeTime, formatSalary } from "@/lib/formatRelativeTime";
 import { categoryIcon } from "@/lib/jobs/feedFilters";
@@ -18,10 +18,10 @@ function gradientFor(category: string) {
 type Props = {
   job: FeedJob;
   user: MeUser;
-  onContactRecorded: (jobId: string, limits?: FeedLimits) => void;
+  onApplicationUpdated: (jobId: string, status: ApplicationStatus) => void;
 };
 
-export function FeaturedJobCard({ job, user, onContactRecorded }: Props) {
+export function FeaturedJobCard({ job, user, onApplicationUpdated }: Props) {
   const own = Boolean(job.isOwnListing);
   const location = workerOrJobLocation({
     publicLocation: job.publicLocation,
@@ -86,7 +86,7 @@ export function FeaturedJobCard({ job, user, onContactRecorded }: Props) {
                 Manage in My Listings
               </Link>
             ) : (
-              <JobCardActions job={job} user={user} layout="featured" onContactRecorded={onContactRecorded} />
+              <JobCardActions job={job} user={user} onApplicationUpdated={onApplicationUpdated} />
             )}
           </div>
         </div>

@@ -1,5 +1,7 @@
 export type JobUrgency = "low" | "medium" | "high";
 
+export type ApplicationStatus = "pending" | "approved" | "rejected";
+
 export type FeedJob = {
   id: string;
   title: string;
@@ -42,6 +44,7 @@ export type FeedResponse = {
   authenticated?: boolean;
   limits?: FeedLimits | null;
   meta?: { cities: string[]; categories: string[] };
+  applicationStatuses?: Record<string, ApplicationStatus>;
   error?: string;
   hint?: string;
 };

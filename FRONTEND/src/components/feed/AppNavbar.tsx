@@ -1,9 +1,10 @@
 "use client";
 
 import Link from "next/link";
+import { usePathname } from "next/navigation";
 import { useState } from "react";
 import type { MeUser } from "@/lib/auth/types";
-import { isEmployerAccount, isWorkerAccount } from "@/lib/auth/accountRole";
+import { isEmployerAccount } from "@/lib/auth/accountRole";
 import { ThekedaarLogo } from "@/components/brand/ThekedaarLogo";
 import { viewerModeLabel } from "@/lib/jobs/viewerRole";
 import { AppNavDrawer } from "./AppNavDrawer";
@@ -17,8 +18,8 @@ type Props = {
 };
 
 export function AppNavbar({ user, cityId, onCityChange }: Props) {
+  const pathname = usePathname();
   const [drawerOpen, setDrawerOpen] = useState(false);
-  const workerOnly = isWorkerAccount(user) && !isEmployerAccount(user);
   const employer = isEmployerAccount(user);
 
   return (
@@ -43,15 +44,18 @@ export function AppNavbar({ user, cityId, onCityChange }: Props) {
             {employer ? (
               <span className="hidden text-xs font-medium text-muted md:inline">{viewerModeLabel(user)}</span>
             ) : null}
-            {!workerOnly ? (
-              <Link
-                href="/feed/profile"
-                className="hidden h-9 w-9 items-center justify-center rounded-full bg-brand/15 text-sm font-bold text-brand transition hover:bg-brand/25 sm:flex"
-                title="Your profile"
-              >
-                {(user.name || user.phone).slice(0, 1).toUpperCase()}
-              </Link>
-            ) : null}
+            <Link
+              href="/feed/profile"
+              className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-sm font-bold transition hover:opacity-90 ${
+                pathname === "/feed/profile"
+                  ? "bg-brand text-white ring-2 ring-brand/30"
+                  : "bg-brand/15 text-brand"
+              }`}
+              title="Your profile"
+              aria-label="Your profile"
+            >
+              {(user.name || user.phone).slice(0, 1).toUpperCase()}
+            </Link>
             <button
               type="button"
               onClick={() => setDrawerOpen(true)}

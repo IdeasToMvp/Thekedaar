@@ -1,12 +1,15 @@
 import type { Request, Response } from "express";
 import { z } from "zod";
 import type { RequestWithSession } from "../middleware/requireSession";
+import { getWorkerApplicationMap } from "../services/applications.service";
+import { getUserCapabilities } from "../services/user.service";
 import {
   buildFeedLimits,
   countJobsForFeed,
   distinctJobCategories,
   distinctJobCities,
   listJobsForFeed,
+  type JobFeedApiJob,
 } from "../services/jobs.service";
 
 const FeedQuerySchema = z.object({
@@ -17,12 +20,41 @@ const FeedQuerySchema = z.object({
   sort: z.enum(["newest", "salary_high", "salary_low"]).optional().default("newest"),
 });
 
+function stripEmployerContact(job: JobFeedApiJob): JobFeedApiJob {
+  const { contactWaDigits: _wa, ...rest } = job;
+  return rest;
+}
+
 function jobsForViewer(
-  jobs: Awaited<ReturnType<typeof listJobsForFeed>>["jobs"],
-  authenticated: boolean,
-) {
-  if (authenticated) return jobs;
-  return jobs.map(({ contactWaDigits: _wa, ...job }) => job);
+  jobs: JobFeedApiJob[],
+  opts: {
+    authenticated: boolean;
+    applicationMap: Record<string, "pending" | "approved" | "rejected">;
+    viewerId?: string;
+    isWorker: boolean;
+  },
+): JobFeedApiJob[] {
+  return jobs.map((job) => {
+    const status = opts.applicationMap[job.id] ?? null;
+    const withStatus = { ...job, applicationStatus: status };
+
+    if (!opts.authenticated) {
+      return stripEmployerContact(withStatus);
+    }
+
+    if (job.isOwnListing) {
+      return withStatus;
+    }
+
+    if (opts.isWorker) {
+      if (status === "approved") {
+        return withStatus;
+      }
+      return stripEmployerContact(withStatus);
+    }
+
+    return withStatus;
+  });
 }
 
 export async function handleFeedGet(req: Request, res: Response): Promise<void> {
@@ -44,16 +76,31 @@ export async function handleFeedGet(req: Request, res: Response): Promise<void> 
       limit,
       viewerId: session?.sub,
     });
+
+    let applicationMap: Record<string, "pending" | "approved" | "rejected"> = {};
+    let isWorker = false;
+    if (session) {
+      applicationMap = await getWorkerApplicationMap(session.sub);
+      const caps = await getUserCapabilities(session.sub);
+      isWorker = caps.can_seek;
+    }
+
     const limits = session ? await buildFeedLimits(session.sub) : null;
     const [cities, categories] = await Promise.all([distinctJobCities(), distinctJobCategories()]);
     res.status(200).json({
-      jobs: jobsForViewer(jobs, Boolean(session)),
+      jobs: jobsForViewer(jobs, {
+        authenticated: Boolean(session),
+        applicationMap,
+        viewerId: session?.sub,
+        isWorker,
+      }),
       total,
       offset,
       limit,
       hasMore: offset + jobs.length < total,
       limits,
       authenticated: Boolean(session),
+      applicationStatuses: applicationMap,
       meta: { cities, categories },
     });
   } catch (e: unknown) {

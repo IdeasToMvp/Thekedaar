@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import type { FeedJob, FeedLimits } from "@/lib/jobs/types";
+import type { ApplicationStatus, FeedJob } from "@/lib/jobs/types";
 import type { MeUser } from "@/lib/auth/types";
 import { formatRelativeTime, formatSalary } from "@/lib/formatRelativeTime";
 import { categoryIcon } from "@/lib/jobs/feedFilters";
@@ -18,10 +18,10 @@ function categoryGradient(category: string): string {
 type Props = {
   job: FeedJob;
   user: MeUser;
-  onContactRecorded: (jobId: string, limits?: FeedLimits) => void;
+  onApplicationUpdated: (jobId: string, status: ApplicationStatus) => void;
 };
 
-export function FeedJobCard({ job, user, onContactRecorded }: Props) {
+export function FeedJobCard({ job, user, onApplicationUpdated }: Props) {
   const own = Boolean(job.isOwnListing);
   const location = workerOrJobLocation({
     publicLocation: job.publicLocation,
@@ -86,7 +86,7 @@ export function FeedJobCard({ job, user, onContactRecorded }: Props) {
             </Link>
           </div>
         ) : (
-          <JobCardActions job={job} user={user} onContactRecorded={onContactRecorded} />
+          <JobCardActions job={job} user={user} onApplicationUpdated={onApplicationUpdated} />
         )}
       </div>
     </article>

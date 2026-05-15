@@ -27,6 +27,12 @@ export function formatCandidateRequirements(job: FeedJob): string | null {
 
   if (job.requiredDocuments?.includes("aadhaar")) bits.push("Aadhaar required");
 
+  if (job.experienceYearsRequired != null && job.experienceYearsRequired > 0) {
+    bits.push(`${job.experienceYearsRequired}+ yrs experience`);
+  } else if (job.experienceYearsRequired === 0) {
+    bits.push("Fresher welcome");
+  }
+
   return bits.length > 0 ? bits.join(" · ") : null;
 }
 

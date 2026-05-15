@@ -58,10 +58,15 @@ export function AppNavDrawer({ open, user, onClose }: Props) {
           </button>
         </div>
 
-        <div className="border-b border-border px-4 py-3">
+        <Link
+          href="/feed/profile"
+          onClick={onClose}
+          className="block border-b border-border px-4 py-3 transition hover:bg-slate-50"
+        >
           <p className="text-sm font-medium text-foreground">{user.name || user.phone}</p>
           {!workerOnly ? <p className="text-xs text-muted">{viewerModeLabel(user)}</p> : null}
-        </div>
+          <p className="mt-0.5 text-xs text-brand">View profile →</p>
+        </Link>
 
         <FeedNavLinks
           user={user}

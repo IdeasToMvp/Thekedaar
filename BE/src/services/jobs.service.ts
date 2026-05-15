@@ -25,6 +25,7 @@ export type JobFeedRow = {
   max_age: number | null;
   preferred_gender: string | null;
   required_documents: string[] | null;
+  experience_years_required: number | null;
   created_at: string;
 };
 
@@ -48,9 +49,11 @@ export type JobFeedApiJob = {
   maxAge?: number | null;
   preferredGender?: string | null;
   requiredDocuments?: string[];
+  experienceYearsRequired?: number | null;
   posterSubscription: { plan: BillingPlan; features: Record<string, boolean> };
   contactWaDigits: string;
   isOwnListing?: boolean;
+  applicationStatus?: "pending" | "approved" | "rejected" | null;
 };
 
 function normalizeUrgency(u: string | null | undefined): "low" | "medium" | "high" {
@@ -95,6 +98,7 @@ export function mapJobToFeedApi(
     maxAge: job.max_age ?? null,
     preferredGender: job.preferred_gender ?? null,
     requiredDocuments: job.required_documents ?? [],
+    experienceYearsRequired: job.experience_years_required ?? null,
     posterSubscription: { plan, features: plan === "pro" ? { boosted_listing: true } : {} },
     contactWaDigits: waDigitsFromPhone(recruiter.phone),
     ...(viewerId && job.recruiter_id === viewerId ? { isOwnListing: true } : {}),
@@ -163,6 +167,7 @@ export async function createJob(input: {
   maxAge?: number | null;
   preferredGender?: string | null;
   requiredDocuments?: string[] | null;
+  experienceYearsRequired?: number | null;
 }) {
   await assertCanCreateJob(input.recruiterId);
   const sb = supabaseAdmin();
@@ -184,6 +189,7 @@ export async function createJob(input: {
       max_age: input.maxAge ?? null,
       preferred_gender: input.preferredGender ?? null,
       required_documents: input.requiredDocuments ?? [],
+      experience_years_required: input.experienceYearsRequired ?? null,
     })
     .select("id")
     .single();
@@ -209,6 +215,7 @@ export async function updateJobForRecruiter(input: {
   maxAge?: number | null;
   preferredGender?: string | null;
   requiredDocuments?: string[] | null;
+  experienceYearsRequired?: number | null;
 }) {
   const existing = await getJobById(input.jobId);
   if (!existing) throw new Error("Job not found");
@@ -232,6 +239,9 @@ export async function updateJobForRecruiter(input: {
   if (input.maxAge !== undefined) patch.max_age = input.maxAge;
   if (input.preferredGender !== undefined) patch.preferred_gender = input.preferredGender;
   if (input.requiredDocuments !== undefined) patch.required_documents = input.requiredDocuments ?? [];
+  if (input.experienceYearsRequired !== undefined) {
+    patch.experience_years_required = input.experienceYearsRequired;
+  }
 
   const { error } = await sb.from("jobs").update(patch).eq("id", input.jobId);
   if (error) throw error;
@@ -297,7 +307,7 @@ export async function listJobsForFeed(input: {
 }): Promise<{ jobs: JobFeedApiJob[]; rawRows: JobFeedRow[] }> {
   const sb = supabaseAdmin();
   let q = sb.from("jobs").select(
-    "id,recruiter_id,title,city,sector,salary,timing,accommodation,urgency,category,description,min_age,max_age,preferred_gender,required_documents,created_at",
+    "id,recruiter_id,title,city,sector,salary,timing,accommodation,urgency,category,description,min_age,max_age,preferred_gender,required_documents,experience_years_required,created_at",
   );
 
   if (input.city) q = q.ilike("city", input.city);
@@ -364,7 +374,7 @@ export async function getJobById(jobId: string): Promise<JobFeedRow | null> {
   const sb = supabaseAdmin();
   const { data, error } = await sb
     .from("jobs")
-    .select("id,recruiter_id,title,city,sector,salary,timing,accommodation,urgency,category,description,min_age,max_age,preferred_gender,required_documents,created_at")
+    .select("id,recruiter_id,title,city,sector,salary,timing,accommodation,urgency,category,description,min_age,max_age,preferred_gender,required_documents,experience_years_required,created_at")
     .eq("id", jobId)
     .maybeSingle();
   if (error) throw error;
@@ -463,7 +473,7 @@ export async function listUserFeedContactActivity(userId: string): Promise<FeedC
   const jobIds = [...new Set(rows.map((r) => r.job_id))];
   const { data: jobs, error: jErr } = await sb
     .from("jobs")
-    .select("id,recruiter_id,title,city,sector,salary,timing,accommodation,urgency,category,description,min_age,max_age,preferred_gender,required_documents,created_at")
+    .select("id,recruiter_id,title,city,sector,salary,timing,accommodation,urgency,category,description,min_age,max_age,preferred_gender,required_documents,experience_years_required,created_at")
     .in("id", jobIds);
   if (jErr) throw jErr;
   const jobRows = (jobs ?? []) as JobFeedRow[];
@@ -498,7 +508,7 @@ export async function listRecruiterOwnListings(userId: string, limit = 20): Prom
   const sb = supabaseAdmin();
   const { data, error } = await sb
     .from("jobs")
-    .select("id,recruiter_id,title,city,sector,salary,timing,accommodation,urgency,category,description,min_age,max_age,preferred_gender,required_documents,created_at")
+    .select("id,recruiter_id,title,city,sector,salary,timing,accommodation,urgency,category,description,min_age,max_age,preferred_gender,required_documents,experience_years_required,created_at")
     .eq("recruiter_id", userId)
     .order("created_at", { ascending: false })
     .limit(limit);

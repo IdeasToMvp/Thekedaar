@@ -7,7 +7,9 @@ import { skillLabelToRoleId } from "@/lib/launch/skillIds";
 import { LocalitySelect } from "./LocalitySelect";
 
 export type JobListingFormValues = {
+  cityId: string;
   roleId: string;
+  experienceYears: string;
   sector: string;
   salary: string;
   timing: string;
@@ -41,9 +43,20 @@ function urgencyFromJob(job: FeedJob): string {
   return "Flexible";
 }
 
-function formFromJob(job: FeedJob): JobListingFormValues {
+function cityIdFromJob(job: FeedJob, fallback: string): string {
+  const jc = (job.city || "").toLowerCase();
+  const match = ACTIVE_MARKET.cities.find(
+    (c) => jc.includes(c.apiValue.toLowerCase()) || c.apiValue.toLowerCase().includes(jc),
+  );
+  return match?.id ?? fallback;
+}
+
+function formFromJob(job: FeedJob, defaultCityId: string): JobListingFormValues {
   const roleId = skillLabelToRoleId(job.category) || ACTIVE_MARKET.roles[0]?.id || "";
   return {
+    cityId: cityIdFromJob(job, defaultCityId),
+    experienceYears:
+      job.experienceYearsRequired != null ? String(job.experienceYearsRequired) : "",
     roleId,
     sector: job.sector?.trim() || "",
     salary: job.salaryPerMonth > 0 ? String(job.salaryPerMonth) : "",
@@ -59,7 +72,9 @@ function formFromJob(job: FeedJob): JobListingFormValues {
   };
 }
 
-const emptyForm = (): JobListingFormValues => ({
+const emptyForm = (defaultCityId: string): JobListingFormValues => ({
+  cityId: defaultCityId,
+  experienceYears: "",
   roleId: ACTIVE_MARKET.roles[0]?.id ?? "",
   sector: "",
   salary: "",
@@ -81,10 +96,10 @@ export function JobListingModal({ open, cityId, job, onClose, onSuccess }: Props
 
   useEffect(() => {
     if (!open) return;
-    setForm(job ? formFromJob(job) : emptyForm());
+    setForm(job ? formFromJob(job, cityId) : emptyForm(cityId));
     setError(null);
     setSubmitting(false);
-  }, [open, job]);
+  }, [open, job, cityId]);
 
   useEffect(() => {
     if (!open) return;
@@ -140,10 +155,18 @@ export function JobListingModal({ open, cityId, job, onClose, onSuccess }: Props
       return;
     }
 
+    const expTrim = form.experienceYears.trim();
+    const experienceYearsRequired = expTrim === "" ? null : Number(expTrim);
+    if (experienceYearsRequired != null && (!Number.isInteger(experienceYearsRequired) || experienceYearsRequired < 0 || experienceYearsRequired > 80)) {
+      setError("Experience required must be a whole number from 0 to 80.");
+      return;
+    }
+
     const payload = {
       title: role.label,
       category: role.apiCategory,
-      city: cityToApiParam(cityId) ?? ACTIVE_MARKET.displayName,
+      city: cityToApiParam(form.cityId) ?? ACTIVE_MARKET.displayName,
+      experienceYearsRequired,
       sector,
       salary: Math.round(salaryNum),
       timing,
@@ -199,6 +222,22 @@ export function JobListingModal({ open, cityId, job, onClose, onSuccess }: Props
 
         <div className="min-h-0 flex-1 overflow-y-auto px-5 py-4">
           <label className="block text-sm font-medium text-foreground">
+            City
+            <select
+              required
+              value={form.cityId}
+              onChange={(e) => setForm((f) => ({ ...f, cityId: e.target.value }))}
+              className="mt-1.5 w-full rounded-xl border border-border bg-background px-3 py-2.5 text-sm"
+            >
+              {ACTIVE_MARKET.cities.map((c) => (
+                <option key={c.id} value={c.id}>
+                  {c.label}
+                </option>
+              ))}
+            </select>
+          </label>
+
+          <label className="mt-4 block text-sm font-medium text-foreground">
             Role needed
             <select
               required
@@ -219,8 +258,20 @@ export function JobListingModal({ open, cityId, job, onClose, onSuccess }: Props
             value={form.sector}
             onChange={(sector) => setForm((f) => ({ ...f, sector }))}
             required
-            hint={`City is ${cityToApiParam(cityId) ?? ACTIVE_MARKET.displayName}. Street address is collected on WhatsApp only — not shown on the feed.`}
+            hint={`City is ${cityToApiParam(form.cityId) ?? ACTIVE_MARKET.displayName}. Only area is shown on the public feed.`}
           />
+
+          <label className="mt-4 block text-sm font-medium text-foreground">
+            Experience required (years)
+            <input
+              type="text"
+              inputMode="numeric"
+              placeholder="e.g. 2 (0 for fresher)"
+              value={form.experienceYears}
+              onChange={(e) => setForm((f) => ({ ...f, experienceYears: e.target.value }))}
+              className="mt-1.5 w-full rounded-xl border border-border bg-background px-3 py-2.5 text-sm placeholder:text-muted/70"
+            />
+          </label>
 
           <label className="mt-4 block text-sm font-medium text-foreground">
             Monthly salary (₹)
@@ -228,9 +279,10 @@ export function JobListingModal({ open, cityId, job, onClose, onSuccess }: Props
               type="text"
               inputMode="numeric"
               required
+              placeholder="e.g. 18000"
               value={form.salary}
               onChange={(e) => setForm((f) => ({ ...f, salary: e.target.value }))}
-              className="mt-1.5 w-full rounded-xl border border-border bg-background px-3 py-2.5 text-sm"
+              className="mt-1.5 w-full rounded-xl border border-border bg-background px-3 py-2.5 text-sm placeholder:text-muted/70"
             />
           </label>
 
@@ -239,9 +291,10 @@ export function JobListingModal({ open, cityId, job, onClose, onSuccess }: Props
             <input
               type="text"
               required
+              placeholder="e.g. 9am – 6pm, Mon–Sat"
               value={form.timing}
               onChange={(e) => setForm((f) => ({ ...f, timing: e.target.value }))}
-              className="mt-1.5 w-full rounded-xl border border-border bg-background px-3 py-2.5 text-sm"
+              className="mt-1.5 w-full rounded-xl border border-border bg-background px-3 py-2.5 text-sm placeholder:text-muted/70"
             />
           </label>
 
@@ -254,7 +307,7 @@ export function JobListingModal({ open, cityId, job, onClose, onSuccess }: Props
                 placeholder="e.g. 20"
                 value={form.minAge}
                 onChange={(e) => setForm((f) => ({ ...f, minAge: e.target.value }))}
-                className="mt-1.5 w-full rounded-xl border border-border bg-background px-3 py-2.5 text-sm"
+                className="mt-1.5 w-full rounded-xl border border-border bg-background px-3 py-2.5 text-sm placeholder:text-muted/70"
               />
             </label>
             <label className="block text-sm font-medium text-foreground">
@@ -262,7 +315,7 @@ export function JobListingModal({ open, cityId, job, onClose, onSuccess }: Props
               <input
                 type="text"
                 inputMode="numeric"
-                placeholder="Optional"
+                placeholder="e.g. 45 (optional)"
                 value={form.maxAge}
                 onChange={(e) => setForm((f) => ({ ...f, maxAge: e.target.value }))}
                 className="mt-1.5 w-full rounded-xl border border-border bg-background px-3 py-2.5 text-sm"
@@ -335,9 +388,10 @@ export function JobListingModal({ open, cityId, job, onClose, onSuccess }: Props
             Description <span className="font-normal text-muted">(optional)</span>
             <textarea
               rows={3}
+              placeholder="e.g. Veg cooking for family of 4, 2 meals daily"
               value={form.description}
               onChange={(e) => setForm((f) => ({ ...f, description: e.target.value }))}
-              className="mt-1.5 w-full resize-none rounded-xl border border-border bg-background px-3 py-2.5 text-sm"
+              className="mt-1.5 w-full resize-none rounded-xl border border-border bg-background px-3 py-2.5 text-sm placeholder:text-muted/70"
             />
           </label>
 

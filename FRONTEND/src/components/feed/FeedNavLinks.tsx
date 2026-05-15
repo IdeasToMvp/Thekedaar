@@ -25,9 +25,18 @@ export function FeedNavLinks({ user, className = "", onNavigate }: Props) {
   return (
     <nav className={className}>
       {workerOnly || isWorkerAccount(user) ? (
-        <Link href="/feed" onClick={onNavigate} className={linkClass(pathname === "/feed")}>
-          Find Jobs
-        </Link>
+        <>
+          <Link href="/feed" onClick={onNavigate} className={linkClass(pathname === "/feed")}>
+            Find Jobs
+          </Link>
+          <Link
+            href="/feed/applied"
+            onClick={onNavigate}
+            className={linkClass(pathname === "/feed/applied")}
+          >
+            Applied
+          </Link>
+        </>
       ) : null}
       {employer ? (
         <>
@@ -42,6 +51,13 @@ export function FeedNavLinks({ user, className = "", onNavigate }: Props) {
             My Listings
           </Link>
           <Link
+            href="/feed/applications"
+            onClick={onNavigate}
+            className={linkClass(pathname === "/feed/applications")}
+          >
+            Applications
+          </Link>
+          <Link
             href="/feed/contacted"
             onClick={onNavigate}
             className={linkClass(pathname === "/feed/contacted")}
@@ -50,9 +66,6 @@ export function FeedNavLinks({ user, className = "", onNavigate }: Props) {
           </Link>
         </>
       ) : null}
-      <Link href="/feed/profile" onClick={onNavigate} className={linkClass(pathname === "/feed/profile")}>
-        Profile
-      </Link>
     </nav>
   );
 }

@@ -5,6 +5,7 @@ import { optionalSession } from "../middleware/optionalSession";
 import { requireSession, type RequestWithSession } from "../middleware/requireSession";
 import { upsertRecruiterProfile } from "../services/recruiter.service";
 import { updateUserProfile } from "../services/user.service";
+import { submitJobApplication } from "../services/applications.service";
 import {
   buildFeedLimits,
   createJob,
@@ -31,6 +32,7 @@ const CreateJobBodySchema = z.object({
   maxAge: z.number().int().min(16).max(80).optional().nullable(),
   preferredGender: z.enum(["any", "male", "female"]).optional().nullable(),
   requiredDocuments: z.array(z.enum(["aadhaar"])).max(4).optional().nullable(),
+  experienceYearsRequired: z.number().int().min(0).max(80).optional().nullable(),
 });
 
 router.post("/", requireSession, async (req, res) => {
@@ -66,6 +68,7 @@ router.post("/", requireSession, async (req, res) => {
       maxAge: body.maxAge ?? null,
       preferredGender: body.preferredGender ?? null,
       requiredDocuments: body.requiredDocuments ?? [],
+      experienceYearsRequired: body.experienceYearsRequired ?? null,
     });
 
     return res.status(201).json({ ok: true, jobId: job.id });
@@ -110,6 +113,7 @@ router.patch("/:jobId", requireSession, async (req, res) => {
       maxAge: body.maxAge,
       preferredGender: body.preferredGender,
       requiredDocuments: body.requiredDocuments,
+      experienceYearsRequired: body.experienceYearsRequired,
     });
     return res.status(200).json({ ok: true, jobId });
   } catch (e: unknown) {
@@ -121,6 +125,36 @@ router.patch("/:jobId", requireSession, async (req, res) => {
 
 const ContactBodySchema = z.object({
   action: z.enum(["apply", "whatsapp", "hire"]),
+});
+
+router.post("/:jobId/apply", requireSession, async (req, res) => {
+  const session = (req as RequestWithSession).session;
+  const jobId = typeof req.params.jobId === "string" ? req.params.jobId : req.params.jobId?.[0];
+  if (!jobId || !z.string().uuid().safeParse(jobId).success) {
+    return res.status(400).json({ error: "Invalid job id" });
+  }
+
+  try {
+    const { application, created } = await submitJobApplication({
+      workerId: session.sub,
+      jobId,
+    });
+    return res.status(created ? 201 : 200).json({
+      ok: true,
+      created,
+      application,
+      message: created
+        ? "Application sent. The employer will review it on Thekedaar and WhatsApp."
+        : "You already applied to this job.",
+    });
+  } catch (e: unknown) {
+    const msg = e instanceof Error ? e.message : "Apply failed";
+    const status =
+      msg.includes("worker profile") ? 403 :
+      msg.includes("own listing") ? 400 :
+      msg.includes("not found") ? 404 : 400;
+    return res.status(status).json({ error: msg });
+  }
 });
 
 router.post("/:jobId/contact", requireSession, async (req, res) => {
@@ -138,6 +172,19 @@ router.post("/:jobId/contact", requireSession, async (req, res) => {
     const job = await getJobById(jobId);
     if (!job) {
       return res.status(404).json({ error: "Job not found" });
+    }
+    if (parsed.data.action === "apply") {
+      const { application, created } = await submitJobApplication({
+        workerId: session.sub,
+        jobId,
+      });
+      const limits = await buildFeedLimits(session.sub);
+      return res.status(200).json({
+        ok: true,
+        recorded: created,
+        application,
+        limits,
+      });
     }
     const result = await recordFeedJobContact({
       userId: session.sub,

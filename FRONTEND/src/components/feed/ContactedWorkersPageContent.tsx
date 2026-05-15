@@ -76,7 +76,7 @@ export function ContactedWorkersPageContent() {
           ) : null}
 
           {loading ? (
-            <ul className="mt-6 grid list-none gap-4 sm:grid-cols-2">
+            <ul className="mt-6 grid list-none gap-3 sm:grid-cols-2 lg:grid-cols-3">
               {[1, 2].map((i) => (
                 <li key={i} className="h-36 animate-pulse rounded-2xl bg-slate-100" />
               ))}
@@ -87,7 +87,7 @@ export function ContactedWorkersPageContent() {
               someone here.
             </p>
           ) : (
-            <ul className="mt-6 grid list-none gap-4 sm:grid-cols-2">
+            <ul className="mt-6 grid list-none gap-3 sm:grid-cols-2 lg:grid-cols-3">
               {items.map(({ worker, hiredAt }) => {
                 const skills = worker.skills?.length ? worker.skills : worker.role ? [worker.role] : [];
                 const location = workerOrJobLocation({

@@ -1,10 +1,11 @@
 "use client";
 
 import { useEffect } from "react";
-import type { FeedJob, FeedLimits } from "@/lib/jobs/types";
+import type { ApplicationStatus, FeedJob, FeedLimits } from "@/lib/jobs/types";
 import { formatRelativeTime, formatSalary } from "@/lib/formatRelativeTime";
 import { categoryIcon } from "@/lib/jobs/feedFilters";
 import { formatUrgencyLabel } from "@/lib/jobs/listingDetails";
+import { useJobApply } from "@/lib/jobs/useJobApply";
 import { useJobContact } from "@/lib/jobs/useJobContact";
 import { primaryJobAction } from "@/lib/jobs/viewerRole";
 import type { MeUser } from "@/lib/auth/types";
@@ -16,7 +17,8 @@ type Props = {
   job: FeedJob | null;
   user: MeUser;
   onClose: () => void;
-  onContactRecorded: (jobId: string, limits?: FeedLimits) => void;
+  onApplicationUpdated: (jobId: string, status: ApplicationStatus) => void;
+  onContactRecorded?: (jobId: string, limits?: FeedLimits) => void;
 };
 
 const STUB_JOB: FeedJob = {
@@ -40,11 +42,27 @@ function isBoilerplateDescription(job: FeedJob): boolean {
   return false;
 }
 
-export function JobListingViewModal({ open, job, user, onClose, onContactRecorded }: Props) {
+export function JobListingViewModal({
+  open,
+  job,
+  user,
+  onClose,
+  onApplicationUpdated,
+  onContactRecorded,
+}: Props) {
   const activeJob = job ?? STUB_JOB;
   const action = job ? primaryJobAction(user) : null;
-  const { loading, error, contacted, canWhatsApp, primaryLabel, handlePrimary, handleWhatsApp, hasAction } =
-    useJobContact(activeJob, action, onContactRecorded);
+  const isApply = action === "apply";
+  const apply = useJobApply(activeJob, onApplicationUpdated);
+  const hire = useJobContact(activeJob, action === "hire" ? "hire" : null, onContactRecorded ?? (() => {}));
+
+  const loading = isApply ? apply.loading : hire.loading !== null;
+  const error = isApply ? apply.error : hire.error;
+  const primaryLabel = isApply ? apply.primaryLabel : hire.primaryLabel;
+  const handlePrimary = isApply ? apply.handleApply : hire.handlePrimary;
+  const showCheck = isApply ? apply.status === "pending" || apply.status === "approved" : hire.contacted;
+  const disabled = isApply ? apply.disabled : hire.loading !== null;
+  const hasAction = Boolean(action);
 
   useEffect(() => {
     if (!open) return;
@@ -120,19 +138,8 @@ export function JobListingViewModal({ open, job, user, onClose, onContactRecorde
             ) : null}
           </p>
 
-          {hasAction && canWhatsApp ? (
-            <section className="mt-5 rounded-xl border border-[#25D366]/30 bg-[#25D366]/5 p-4">
-              <p className="text-xs font-semibold uppercase tracking-wider text-[#128C7E]">Contact employer</p>
-              <p className="mt-1 text-xs text-muted">Reach out on WhatsApp after applying.</p>
-              <button
-                type="button"
-                onClick={handleWhatsApp}
-                disabled={!canWhatsApp || loading !== null}
-                className="mt-3 flex min-h-11 w-full items-center justify-center gap-2 rounded-full border-2 border-[#25D366] bg-white text-sm font-semibold text-[#128C7E] transition hover:bg-[#25D366]/10 disabled:opacity-50"
-              >
-                {loading === "whatsapp" ? "…" : "WhatsApp employer"}
-              </button>
-            </section>
+          {isApply && apply.statusHint ? (
+            <p className="mt-3 rounded-xl border border-border bg-slate-50 px-3 py-2 text-xs text-muted">{apply.statusHint}</p>
           ) : null}
 
           {error ? (
@@ -147,11 +154,11 @@ export function JobListingViewModal({ open, job, user, onClose, onContactRecorde
             <button
               type="button"
               onClick={handlePrimary}
-              disabled={loading !== null}
+              disabled={disabled}
               className="min-h-11 w-full rounded-full bg-brand-dark text-sm font-semibold text-white disabled:opacity-50"
             >
-              {loading === action ? "…" : primaryLabel}
-              {contacted ? " ✓" : ""}
+              {loading ? "…" : primaryLabel}
+              {showCheck ? " ✓" : ""}
             </button>
           ) : (
             <button
