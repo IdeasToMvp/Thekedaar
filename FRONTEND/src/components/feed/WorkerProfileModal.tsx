@@ -107,6 +107,20 @@ export function WorkerProfileModal({ open, mode, worker, onClose }: Props) {
         <div className="min-h-0 flex-1 overflow-y-auto px-5 py-4">
           <WorkerListingMeta worker={worker} />
 
+          {skills.length > 1 ? (
+            <section className="mt-4">
+              <p className="text-[10px] font-semibold uppercase tracking-wide text-muted">All skills</p>
+              <p className="mt-1 text-sm font-medium text-foreground">{skills.join(" · ")}</p>
+            </section>
+          ) : null}
+
+          {worker.expectedSalary > 0 ? (
+            <section className="mt-4 rounded-xl border border-border bg-slate-50/80 px-3 py-2.5">
+              <p className="text-[10px] font-semibold uppercase tracking-wide text-muted">Expected pay</p>
+              <p className="mt-0.5 text-sm font-semibold text-foreground">{formatSalary(worker.expectedSalary)} per month</p>
+            </section>
+          ) : null}
+
           {hired ? (
             <section className="mt-5 rounded-xl border border-brand/25 bg-brand/5 p-4">
               <p className="text-xs font-semibold uppercase tracking-wider text-brand-dark">Contact</p>

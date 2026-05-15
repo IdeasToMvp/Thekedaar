@@ -46,9 +46,9 @@ export function MyListingsSection({ listings, loading, compact = false, onEditJo
           No listings yet. Use “Post a Job” to create your first listing.
         </p>
       ) : (
-        <ul className="mt-4 grid list-none grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+        <ul className="mt-4 grid list-none grid-cols-1 gap-3 sm:grid-cols-2 sm:items-stretch lg:grid-cols-3">
           {preview.map((job) => (
-            <li key={job.id} className="flex min-h-[12rem]">
+            <li key={job.id} className="flex min-w-0">
               <MyListingCard job={job} onEdit={onEditJob} />
             </li>
           ))}

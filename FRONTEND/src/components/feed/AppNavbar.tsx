@@ -1,9 +1,9 @@
 "use client";
 
 import Link from "next/link";
-import { useRouter } from "next/navigation";
 import { useState } from "react";
 import type { MeUser } from "@/lib/auth/types";
+import { isEmployerAccount, isWorkerAccount } from "@/lib/auth/accountRole";
 import { ThekedaarLogo } from "@/components/brand/ThekedaarLogo";
 import { viewerModeLabel } from "@/lib/jobs/viewerRole";
 import { AppNavDrawer } from "./AppNavDrawer";
@@ -17,13 +17,9 @@ type Props = {
 };
 
 export function AppNavbar({ user, cityId, onCityChange }: Props) {
-  const router = useRouter();
   const [drawerOpen, setDrawerOpen] = useState(false);
-  async function signOut() {
-    await fetch("/api/auth/logout", { method: "POST" });
-    router.push("/");
-    router.refresh();
-  }
+  const workerOnly = isWorkerAccount(user) && !isEmployerAccount(user);
+  const employer = isEmployerAccount(user);
 
   return (
     <>
@@ -42,23 +38,20 @@ export function AppNavbar({ user, cityId, onCityChange }: Props) {
             user={user}
             className="hidden flex-1 items-center justify-center gap-8 text-sm font-medium lg:flex"
           />
-          <button
-            type="button"
-            onClick={signOut}
-            className="hidden text-sm font-medium text-muted transition hover:text-foreground lg:block"
-          >
-            Sign out
-          </button>
 
           <div className="ml-auto flex items-center gap-2 sm:gap-3">
-            <span className="hidden text-xs font-medium text-muted md:inline">{viewerModeLabel(user)}</span>
-            <Link
-              href="/feed/profile"
-              className="hidden h-9 w-9 items-center justify-center rounded-full bg-brand/15 text-sm font-bold text-brand transition hover:bg-brand/25 sm:flex"
-              title="Your profile"
-            >
-              {(user.name || user.phone).slice(0, 1).toUpperCase()}
-            </Link>
+            {employer ? (
+              <span className="hidden text-xs font-medium text-muted md:inline">{viewerModeLabel(user)}</span>
+            ) : null}
+            {!workerOnly ? (
+              <Link
+                href="/feed/profile"
+                className="hidden h-9 w-9 items-center justify-center rounded-full bg-brand/15 text-sm font-bold text-brand transition hover:bg-brand/25 sm:flex"
+                title="Your profile"
+              >
+                {(user.name || user.phone).slice(0, 1).toUpperCase()}
+              </Link>
+            ) : null}
             <button
               type="button"
               onClick={() => setDrawerOpen(true)}
@@ -71,12 +64,7 @@ export function AppNavbar({ user, cityId, onCityChange }: Props) {
         </div>
       </header>
 
-      <AppNavDrawer
-        open={drawerOpen}
-        user={user}
-        onClose={() => setDrawerOpen(false)}
-        onSignOut={signOut}
-      />
+      <AppNavDrawer open={drawerOpen} user={user} onClose={() => setDrawerOpen(false)} />
     </>
   );
 }

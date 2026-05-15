@@ -58,7 +58,7 @@ export function WorkerCardActions({ worker, user, hired, contactsRemaining, onHi
 
   return (
     <>
-      <div className="mt-auto space-y-2 border-t border-border pt-3">
+      <div className="mt-auto space-y-2 border-t border-border pt-2">
         {error ? (
           <p className="text-xs text-red-700" role="alert">
             {error}
@@ -68,7 +68,7 @@ export function WorkerCardActions({ worker, user, hired, contactsRemaining, onHi
           <button
             type="button"
             onClick={() => setModal("view")}
-            className="min-h-10 flex-1 rounded-full border border-border bg-background text-sm font-semibold text-foreground transition hover:bg-slate-50"
+            className="min-h-9 flex-1 rounded-full border border-border bg-background text-sm font-semibold text-foreground transition hover:bg-slate-50"
           >
             View profile
           </button>
@@ -76,7 +76,7 @@ export function WorkerCardActions({ worker, user, hired, contactsRemaining, onHi
             type="button"
             onClick={openHire}
             disabled={loading || hireDisabled}
-            className="min-h-10 flex-1 rounded-full bg-brand-dark text-sm font-semibold text-white transition hover:opacity-95 disabled:cursor-not-allowed disabled:opacity-50"
+            className="min-h-9 flex-1 rounded-full bg-brand-dark text-sm font-semibold text-white transition hover:opacity-95 disabled:cursor-not-allowed disabled:opacity-50"
           >
             {loading ? "…" : hired ? "Contact" : "Hire"}
             {hired ? " ✓" : ""}
@@ -84,9 +84,7 @@ export function WorkerCardActions({ worker, user, hired, contactsRemaining, onHi
         </div>
         {hireDisabled ? (
           <p className="text-[11px] text-muted">Worker contact limit reached for your plan.</p>
-        ) : (
-          <p className="text-[11px] text-muted">Hire unlocks phone & WhatsApp · full address never shown</p>
-        )}
+        ) : null}
       </div>
 
       <WorkerProfileModal

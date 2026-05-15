@@ -3,17 +3,20 @@
 import Link from "next/link";
 import { useEffect } from "react";
 import type { MeUser } from "@/lib/auth/types";
+import { isEmployerAccount, isWorkerAccount } from "@/lib/auth/accountRole";
 import { ThekedaarLogo } from "@/components/brand/ThekedaarLogo";
 import { viewerModeLabel } from "@/lib/jobs/viewerRole";
 import { FeedNavLinks } from "./FeedNavLinks";
+
 type Props = {
   open: boolean;
   user: MeUser;
   onClose: () => void;
-  onSignOut: () => void;
 };
 
-export function AppNavDrawer({ open, user, onClose, onSignOut }: Props) {
+export function AppNavDrawer({ open, user, onClose }: Props) {
+  const workerOnly = isWorkerAccount(user) && !isEmployerAccount(user);
+
   useEffect(() => {
     if (!open) return;
     const prev = document.body.style.overflow;
@@ -57,27 +60,14 @@ export function AppNavDrawer({ open, user, onClose, onSignOut }: Props) {
 
         <div className="border-b border-border px-4 py-3">
           <p className="text-sm font-medium text-foreground">{user.name || user.phone}</p>
-          <p className="text-xs text-muted">{viewerModeLabel(user)}</p>
+          {!workerOnly ? <p className="text-xs text-muted">{viewerModeLabel(user)}</p> : null}
         </div>
 
         <FeedNavLinks
           user={user}
           onNavigate={onClose}
-          className="flex flex-1 flex-col gap-1 overflow-y-auto p-3 text-sm font-medium [&_a]:rounded-lg [&_a]:px-3 [&_a]:py-3 [&_span]:rounded-lg [&_span]:px-3 [&_span]:py-3"
+          className="flex flex-1 flex-col gap-1 overflow-y-auto p-3 text-sm font-medium [&_a]:rounded-lg [&_a]:px-3 [&_a]:py-3"
         />
-
-        <div className="border-t border-border p-4">
-          <button
-            type="button"
-            onClick={() => {
-              onClose();
-              onSignOut();
-            }}
-            className="w-full rounded-xl border border-border py-3 text-sm font-semibold text-foreground transition hover:bg-slate-50"
-          >
-            Sign out
-          </button>
-        </div>
       </nav>
     </div>
   );

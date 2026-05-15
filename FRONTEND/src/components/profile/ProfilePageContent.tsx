@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import type { MeResponse, ProfilePatchBody, WorkerProfile } from "@/lib/auth/types";
 import { accountKind, accountKindLabel, isEmployerAccount, isWorkerAccount } from "@/lib/auth/accountRole";
 import { ACTIVE_MARKET } from "@/lib/launch";
@@ -12,6 +13,7 @@ import { LocalitySelect } from "@/components/feed/LocalitySelect";
 import { SkillMultiSelect } from "./SkillMultiSelect";
 
 export function ProfilePageContent() {
+  const router = useRouter();
   const { user, userLoading, cityId, setCityId, refreshUser } = useFeedUser();
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -353,6 +355,22 @@ export function ProfilePageContent() {
             </button>
           </form>
         )}
+
+        <section className="mt-10 border-t border-border pt-8">
+          <h2 className="text-sm font-semibold text-foreground">Session</h2>
+          <p className="mt-1 text-xs text-muted">Sign out of Thekedaar on this device.</p>
+          <button
+            type="button"
+            onClick={async () => {
+              await fetch("/api/auth/logout", { method: "POST" });
+              router.push("/");
+              router.refresh();
+            }}
+            className="mt-4 w-full min-h-11 rounded-full border border-border bg-background text-sm font-semibold text-foreground transition hover:bg-slate-50"
+          >
+            Sign out
+          </button>
+        </section>
       </main>
     </div>
   );

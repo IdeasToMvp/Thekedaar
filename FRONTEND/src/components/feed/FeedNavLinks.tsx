@@ -20,11 +20,11 @@ export function FeedNavLinks({ user, className = "", onNavigate }: Props) {
       : "text-muted transition hover:text-foreground";
 
   const employer = isEmployerAccount(user);
-  const worker = isWorkerAccount(user);
+  const workerOnly = isWorkerAccount(user) && !employer;
 
   return (
     <nav className={className}>
-      {worker ? (
+      {workerOnly || isWorkerAccount(user) ? (
         <Link href="/feed" onClick={onNavigate} className={linkClass(pathname === "/feed")}>
           Find Jobs
         </Link>

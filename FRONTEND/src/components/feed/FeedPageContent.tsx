@@ -276,9 +276,9 @@ export function FeedPageContent() {
                   <CardSkeletonGrid />
                 ) : (
                   <>
-                    <ul className="mt-6 grid list-none grid-cols-1 gap-4 sm:grid-cols-2 sm:items-stretch">
+                    <ul className="mt-6 grid list-none grid-cols-1 gap-3 sm:grid-cols-2 sm:items-stretch">
                       {salaryFilteredJobs.map((job) => (
-                        <li key={job.id} className="flex min-h-[19.5rem] min-w-0 sm:min-h-[20.5rem]">
+                        <li key={job.id} className="flex min-w-0">
                           <FeedJobCard job={job} user={user} onContactRecorded={handleContactRecorded} />
                         </li>
                       ))}
@@ -311,9 +311,9 @@ export function FeedPageContent() {
               <CardSkeletonGrid />
             ) : (
               <>
-                <ul className="mt-6 grid list-none grid-cols-1 gap-4 sm:grid-cols-2 sm:items-stretch">
+                <ul className="mt-6 grid list-none grid-cols-1 gap-3 sm:grid-cols-2 sm:items-stretch">
                   {salaryFilteredWorkers.map((w) => (
-                    <li key={w.id} className="flex min-h-[19.5rem] min-w-0 sm:min-h-[20.5rem]">
+                    <li key={w.id} className="flex min-w-0">
                       <WorkerFeedCard
                         worker={w}
                         user={user}
@@ -352,10 +352,10 @@ export function FeedPageContent() {
 
 function CardSkeletonGrid() {
   return (
-    <ul className="mt-6 grid list-none grid-cols-1 gap-4 sm:grid-cols-2">
+    <ul className="mt-6 grid list-none grid-cols-1 gap-3 sm:grid-cols-2">
       {Array.from({ length: 4 }).map((_, i) => (
         <li key={i}>
-          <div className="h-full min-h-[19.5rem] animate-pulse rounded-2xl bg-slate-200/60 sm:min-h-[20.5rem]" />
+          <div className="h-36 animate-pulse rounded-2xl bg-slate-200/60" />
         </li>
       ))}
     </ul>
