@@ -1,17 +1,20 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import type { JobApplication, WorkerApplicationsResponse } from "@/lib/jobs/applications";
 import { isWorkerAccount } from "@/lib/auth/accountRole";
-import { formatRelativeTime, formatSalary } from "@/lib/formatRelativeTime";
-import { workerOrJobLocation } from "@/lib/location/publicLocation";
 import type { ApplicationStatus } from "@/lib/jobs/types";
 import { useFeedUser } from "./FeedUserProvider";
 import { AppNavbar } from "./AppNavbar";
 import { JobListingViewModal } from "./JobListingViewModal";
-import { ApplicationStatusBadge } from "./ApplicationStatusBadge";
-import { ContactDetailsCard } from "./ContactDetailsCard";
+import { ApplicationListingCard } from "./ApplicationListingCard";
+import {
+  ApplicationStatusTabs,
+  applicationStatusCounts,
+  filterApplicationsByTab,
+  type ApplicationFilterTab,
+} from "./ApplicationStatusTabs";
 
 export function AppliedJobsPageContent() {
   const { user, userLoading, cityId, setCityId } = useFeedUser();
@@ -19,6 +22,7 @@ export function AppliedJobsPageContent() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [viewJobId, setViewJobId] = useState<string | null>(null);
+  const [statusTab, setStatusTab] = useState<ApplicationFilterTab>("all");
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -54,6 +58,19 @@ export function AppliedJobsPageContent() {
     );
   };
 
+  const counts = useMemo(() => applicationStatusCounts(applications), [applications]);
+  const filtered = useMemo(
+    () => filterApplicationsByTab(applications, statusTab),
+    [applications, statusTab],
+  );
+
+  const emptyMessages: Record<ApplicationFilterTab, string> = {
+    all: "No applications yet.",
+    pending: "No pending applications.",
+    approved: "No approved applications yet. Employer contact shows here after approval.",
+    rejected: "No applications marked as not selected.",
+  };
+
   return (
     <div className="flex h-dvh flex-col overflow-hidden bg-background">
       {showNavbar && user ? (
@@ -71,6 +88,10 @@ export function AppliedJobsPageContent() {
             </p>
           </header>
 
+          {!loading && applications.length > 0 ? (
+            <ApplicationStatusTabs active={statusTab} counts={counts} onChange={setStatusTab} />
+          ) : null}
+
           {error ? (
             <p className="mt-6 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800" role="alert">
               {error}
@@ -80,7 +101,7 @@ export function AppliedJobsPageContent() {
           {loading ? (
             <ul className="mt-6 grid list-none gap-3 sm:grid-cols-2 lg:grid-cols-3">
               {[1, 2].map((i) => (
-                <li key={i} className="h-36 animate-pulse rounded-2xl bg-slate-200/60" />
+                <li key={i} className="h-48 animate-pulse rounded-2xl bg-slate-200/60" />
               ))}
             </ul>
           ) : applications.length === 0 ? (
@@ -90,57 +111,26 @@ export function AppliedJobsPageContent() {
                 Browse jobs
               </Link>
             </p>
+          ) : filtered.length === 0 ? (
+            <p className="mt-8 rounded-2xl border border-dashed border-border bg-surface px-4 py-12 text-center text-sm text-muted">
+              {emptyMessages[statusTab]}{" "}
+              {statusTab === "all" ? (
+                <Link href="/feed" className="font-semibold text-brand hover:underline">
+                  Browse jobs
+                </Link>
+              ) : null}
+            </p>
           ) : (
             <ul className="mt-6 grid list-none gap-3 sm:grid-cols-2 lg:grid-cols-3">
-              {applications.map((app) => {
-                const job = app.job;
-                const location = workerOrJobLocation({
-                  publicLocation: job.publicLocation,
-                  city: job.city,
-                  sector: job.sector,
-                });
-                return (
-                  <li
-                    key={app.id}
-                    className="flex flex-col rounded-2xl border border-border bg-surface p-4 shadow-sm"
-                  >
-                    <div className="flex items-start justify-between gap-2">
-                      <div>
-                        <p className="text-xs font-semibold text-muted">{job.category}</p>
-                        <h2 className="font-serif text-lg font-bold text-foreground">{job.title}</h2>
-                        {location ? <p className="mt-0.5 text-xs text-muted">{location}</p> : null}
-                      </div>
-                      <ApplicationStatusBadge status={app.status} />
-                    </div>
-                    <p className="mt-2 text-sm font-bold text-brand">{formatSalary(job.salaryPerMonth)}</p>
-                    <p className="mt-1 text-[11px] text-muted">Applied {formatRelativeTime(app.appliedAt)}</p>
-
-                    {app.status === "approved" && app.employerContact ? (
-                      <ContactDetailsCard
-                        title="Employer contact"
-                        name={app.employerContact.name}
-                        phone={app.employerContact.phone}
-                        city={app.employerContact.city}
-                        sector={app.employerContact.sector}
-                        fullAddress={app.employerContact.fullAddress}
-                        workAddress={app.employerContact.workAddress}
-                      />
-                    ) : app.status === "pending" ? (
-                      <p className="mt-3 text-xs text-muted">
-                        Waiting for employer approval. You will get WhatsApp when approved.
-                      </p>
-                    ) : null}
-
-                    <button
-                      type="button"
-                      onClick={() => setViewJobId(job.id)}
-                      className="mt-4 min-h-9 w-full rounded-full border border-border text-sm font-semibold text-foreground hover:bg-slate-50"
-                    >
-                      View listing
-                    </button>
-                  </li>
-                );
-              })}
+              {filtered.map((app) => (
+                <li key={app.id} className="flex">
+                  <ApplicationListingCard
+                    app={app}
+                    variant="worker"
+                    onViewListing={() => setViewJobId(app.job.id)}
+                  />
+                </li>
+              ))}
             </ul>
           )}
         </div>

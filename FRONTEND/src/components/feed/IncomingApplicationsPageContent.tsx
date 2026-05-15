@@ -1,15 +1,21 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import type { IncomingApplicationsResponse, JobApplication } from "@/lib/jobs/applications";
 import { isEmployerAccount } from "@/lib/auth/accountRole";
-import { formatRelativeTime, formatSalary } from "@/lib/formatRelativeTime";
-import { workerOrJobLocation } from "@/lib/location/publicLocation";
+import { workerProfileFromApplication } from "@/lib/applications/workerProfileFromApplication";
 import type { ApplicationStatus } from "@/lib/jobs/types";
+import type { FeedWorker, HiredWorker } from "@/lib/workers/types";
 import { useFeedUser } from "./FeedUserProvider";
 import { AppNavbar } from "./AppNavbar";
-import { ApplicationStatusBadge } from "./ApplicationStatusBadge";
-import { ContactDetailsCard } from "./ContactDetailsCard";
+import { ApplicationListingCard } from "./ApplicationListingCard";
+import { WorkerProfileModal } from "./WorkerProfileModal";
+import {
+  ApplicationStatusTabs,
+  applicationStatusCounts,
+  filterApplicationsByTab,
+  type ApplicationFilterTab,
+} from "./ApplicationStatusTabs";
 
 export function IncomingApplicationsPageContent() {
   const { user, userLoading, cityId, setCityId } = useFeedUser();
@@ -17,6 +23,8 @@ export function IncomingApplicationsPageContent() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [actingId, setActingId] = useState<string | null>(null);
+  const [statusTab, setStatusTab] = useState<ApplicationFilterTab>("all");
+  const [profileWorker, setProfileWorker] = useState<FeedWorker | HiredWorker | null>(null);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -68,77 +76,25 @@ export function IncomingApplicationsPageContent() {
     }
   }
 
-  const showNavbar = user || userLoading;
-  const pending = applications.filter((a) => a.status === "pending");
-  const rest = applications.filter((a) => a.status !== "pending");
-
-  function renderCard(app: JobApplication) {
-    const job = app.job;
-    const worker = app.worker;
-    const location = workerOrJobLocation({
-      publicLocation: job.publicLocation,
-      city: job.city,
-      sector: job.sector,
-    });
-    const acting = actingId === app.id;
-
-    return (
-      <li key={app.id} className="flex flex-col rounded-2xl border border-border bg-surface p-4 shadow-sm">
-        <div className="flex items-start justify-between gap-2">
-          <div>
-            <p className="text-xs font-semibold text-muted">{job.category}</p>
-            <h2 className="font-serif text-lg font-bold text-foreground">{job.title}</h2>
-            {location ? <p className="mt-0.5 text-xs text-muted">{location}</p> : null}
-          </div>
-          <ApplicationStatusBadge status={app.status} />
-        </div>
-        <p className="mt-2 text-sm font-bold text-brand">{formatSalary(job.salaryPerMonth)}</p>
-        <p className="mt-1 text-[11px] text-muted">Applied {formatRelativeTime(app.appliedAt)}</p>
-
-        {worker && app.status === "approved" && worker.phone ? (
-          <ContactDetailsCard
-            title="Worker contact"
-            name={worker.name}
-            phone={worker.phone}
-            city={worker.city}
-            sector={worker.sector}
-            fullAddress={worker.fullAddress}
-          />
-        ) : worker ? (
-          <div className="mt-3 rounded-xl border border-border bg-slate-50 px-3 py-2.5 text-sm">
-            <p className="text-[10px] font-semibold uppercase tracking-wide text-muted">Applicant</p>
-            <p className="mt-1 font-medium text-foreground">{worker.name}</p>
-            <p className="text-xs text-muted">
-              {worker.skills.join(", ") || "—"}
-              {worker.experienceYears != null ? ` · ${worker.experienceYears} yrs exp` : ""}
-            </p>
-            <p className="mt-1 text-xs text-muted">Phone and address unlock after you approve</p>
-          </div>
-        ) : null}
-
-        {app.status === "pending" ? (
-          <div className="mt-4 flex gap-2">
-            <button
-              type="button"
-              disabled={acting}
-              onClick={() => void setStatus(app.id, "rejected")}
-              className="min-h-9 flex-1 rounded-full border border-border text-sm font-semibold text-foreground disabled:opacity-50"
-            >
-              Decline
-            </button>
-            <button
-              type="button"
-              disabled={acting}
-              onClick={() => void setStatus(app.id, "approved")}
-              className="min-h-9 flex-1 rounded-full bg-brand-dark text-sm font-semibold text-white disabled:opacity-50"
-            >
-              {acting ? "…" : "Approve"}
-            </button>
-          </div>
-        ) : null}
-      </li>
-    );
+  function openProfile(app: JobApplication) {
+    if (!app.worker) return;
+    const includeContact = app.status === "approved" && Boolean(app.worker.phone);
+    setProfileWorker(workerProfileFromApplication(app.worker, { includeContact }));
   }
+
+  const showNavbar = user || userLoading;
+  const counts = useMemo(() => applicationStatusCounts(applications), [applications]);
+  const filtered = useMemo(
+    () => filterApplicationsByTab(applications, statusTab),
+    [applications, statusTab],
+  );
+
+  const emptyMessages: Record<ApplicationFilterTab, string> = {
+    all: "No applications yet. New applies also notify you on WhatsApp.",
+    pending: "No pending applications to review.",
+    approved: "No approved applications yet.",
+    rejected: "No declined applications.",
+  };
 
   return (
     <div className="flex h-dvh flex-col overflow-hidden bg-background">
@@ -157,6 +113,10 @@ export function IncomingApplicationsPageContent() {
             </p>
           </header>
 
+          {!loading && applications.length > 0 ? (
+            <ApplicationStatusTabs active={statusTab} counts={counts} onChange={setStatusTab} />
+          ) : null}
+
           {error ? (
             <p className="mt-6 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800" role="alert">
               {error}
@@ -166,35 +126,46 @@ export function IncomingApplicationsPageContent() {
           {loading ? (
             <ul className="mt-6 grid list-none gap-3 sm:grid-cols-2 lg:grid-cols-3">
               {[1, 2].map((i) => (
-                <li key={i} className="h-36 animate-pulse rounded-2xl bg-slate-200/60" />
+                <li key={i} className="h-48 animate-pulse rounded-2xl bg-slate-200/60" />
               ))}
             </ul>
           ) : applications.length === 0 ? (
             <p className="mt-8 rounded-2xl border border-dashed border-border bg-surface px-4 py-12 text-center text-sm text-muted">
               No applications yet. New applies also notify you on WhatsApp.
             </p>
+          ) : filtered.length === 0 ? (
+            <p className="mt-8 rounded-2xl border border-dashed border-border bg-surface px-4 py-12 text-center text-sm text-muted">
+              {emptyMessages[statusTab]}
+            </p>
           ) : (
-            <div className="mt-6 space-y-8">
-              {pending.length > 0 ? (
-                <section>
-                  <h2 className="text-sm font-semibold text-foreground">Pending review ({pending.length})</h2>
-                  <ul className="mt-3 grid list-none gap-3 sm:grid-cols-2 lg:grid-cols-3">
-                    {pending.map(renderCard)}
-                  </ul>
-                </section>
-              ) : null}
-              {rest.length > 0 ? (
-                <section>
-                  <h2 className="text-sm font-semibold text-muted">Earlier</h2>
-                  <ul className="mt-3 grid list-none gap-3 sm:grid-cols-2 lg:grid-cols-3">
-                    {rest.map(renderCard)}
-                  </ul>
-                </section>
-              ) : null}
-            </div>
+            <ul className="mt-6 grid list-none gap-3 sm:grid-cols-2 lg:grid-cols-3">
+              {filtered.map((app) => (
+                <li key={app.id} className="flex">
+                  <ApplicationListingCard
+                    app={app}
+                    variant="employer"
+                    acting={actingId === app.id}
+                    onDecline={() => void setStatus(app.id, "rejected")}
+                    onApprove={() => void setStatus(app.id, "approved")}
+                    onViewProfile={
+                      (app.status === "approved" || app.status === "rejected") && app.worker
+                        ? () => openProfile(app)
+                        : undefined
+                    }
+                  />
+                </li>
+              ))}
+            </ul>
           )}
         </div>
       </main>
+
+      <WorkerProfileModal
+        open={Boolean(profileWorker)}
+        mode={profileWorker && "phone" in profileWorker ? "hire" : "view"}
+        worker={profileWorker}
+        onClose={() => setProfileWorker(null)}
+      />
     </div>
   );
 }
