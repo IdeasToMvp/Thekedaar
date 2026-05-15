@@ -463,7 +463,7 @@ export async function listWorkerApplications(workerId: string): Promise<JobAppli
   for (const r of rows) {
     const jobRow = jobMap.get(r.job_id);
     if (!jobRow) continue;
-    const rec = recruiterMap.get(jobRow.recruiter_id);
+    const rec = recruiterMap.get(jobRow.recruiter_id) ?? null;
     const jobApi = mapJobToFeedApi(jobRow, recruiterForJobApi(rec), workerId);
     const status = r.status as ApplicationStatus;
     const item: JobApplicationApi = {
