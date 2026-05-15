@@ -1,18 +1,20 @@
 "use client";
 
-import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import type { MeUser } from "@/lib/auth/types";
-import { ACTIVE_MARKET } from "@/lib/launch";
+import { ThekedaarLogo } from "@/components/brand/ThekedaarLogo";
 import { isWorkerView, viewerModeLabel } from "@/lib/jobs/viewerRole";
 import { AppNavDrawer } from "./AppNavDrawer";
+import { MarketCitySelect } from "./MarketCitySelect";
 
 type Props = {
   user: MeUser;
+  cityId: string;
+  onCityChange: (cityId: string) => void;
 };
 
-export function AppNavbar({ user }: Props) {
+export function AppNavbar({ user, cityId, onCityChange }: Props) {
   const router = useRouter();
   const [drawerOpen, setDrawerOpen] = useState(false);
   const worker = isWorkerView(user);
@@ -26,17 +28,18 @@ export function AppNavbar({ user }: Props) {
   return (
     <>
       <header className="z-50 shrink-0 border-b border-border bg-surface">
-        <div className="mx-auto flex h-14 max-w-[1400px] items-center gap-4 px-4 sm:px-6">
-          <Link href="/feed" className="shrink-0 font-serif text-xl font-bold tracking-tight text-brand">
-            Thekedaar
-          </Link>
+        <div className="mx-auto flex h-14 max-w-[1400px] items-center gap-3 px-4 sm:gap-4 sm:px-6">
+          <ThekedaarLogo variant="lockup" href="/feed" priority />
 
-          <p className="hidden text-xs text-muted sm:block">{ACTIVE_MARKET.regionLabel}</p>
+          <MarketCitySelect
+            cityId={cityId}
+            onCityChange={onCityChange}
+            size="sm"
+            className="min-w-0 max-w-[9.5rem] shrink [&_span]:sr-only"
+          />
 
           <nav className="hidden flex-1 items-center justify-center gap-8 text-sm font-medium lg:flex">
-            <Link href="/feed" className="border-b-2 border-brand pb-0.5 text-foreground">
-              Find Jobs
-            </Link>
+            <span className="border-b-2 border-brand pb-0.5 text-foreground">Find Jobs</span>
             {worker ? (
               <span className="cursor-default text-muted" title="Coming soon">
                 My Applications

@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { ThekedaarLogo } from "@/components/brand/ThekedaarLogo";
 import { signInHref } from "@/lib/signIn";
 
 const jobsLinkClass =
@@ -16,12 +17,7 @@ export function SiteNavbar({ hideSignIn = false }: Props) {
   return (
     <header className="sticky top-0 z-50 border-b border-border/80 bg-surface/90 backdrop-blur-md">
       <div className="mx-auto flex h-16 max-w-6xl items-center gap-4 px-4 sm:px-6">
-        <Link href="/" className="flex shrink-0 items-center gap-2 font-bold tracking-tight text-foreground">
-          <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-brand text-sm text-white">
-            Tk
-          </span>
-          <span>Thekedaar</span>
-        </Link>
+        <ThekedaarLogo variant="lockup" href="/" priority />
 
         <nav className="hidden flex-1 items-center justify-center gap-8 text-sm font-medium text-muted sm:flex">
           <Link href="/#how-it-works" className="transition hover:text-foreground">

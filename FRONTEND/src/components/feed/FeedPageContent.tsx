@@ -146,16 +146,14 @@ export function FeedPageContent() {
 
   return (
     <div className="flex h-dvh flex-col overflow-hidden bg-background">
-      {user ? <AppNavbar user={user} /> : null}
+      {user ? <AppNavbar user={user} cityId={cityId} onCityChange={setCityId} /> : null}
 
       <div className="mx-auto flex min-h-0 w-full max-w-[1400px] flex-1">
         <div className="hidden w-56 shrink-0 overflow-y-auto overscroll-contain border-r border-border xl:w-60 lg:block">
           <FeedSidebar
             roleId={roleId}
-            cityId={cityId}
             salaryBand={salaryBand}
             onRoleChange={setRoleId}
-            onCityChange={setCityId}
             onSalaryBandChange={setSalaryBand}
             onClear={clearFilters}
           />
@@ -165,10 +163,8 @@ export function FeedPageContent() {
           <div className="shrink-0 border-b border-border px-4 py-4 sm:px-6 lg:hidden">
             <FeedMobileFilters
               roleId={roleId}
-              cityId={cityId}
               salaryBand={salaryBand}
               onRoleChange={setRoleId}
-              onCityChange={setCityId}
               onSalaryBandChange={setSalaryBand}
             />
             {hasActiveFilters ? (
@@ -222,7 +218,7 @@ export function FeedPageContent() {
               <ul className="mt-6 grid list-none grid-cols-1 gap-4 sm:grid-cols-2">
                 {Array.from({ length: 4 }).map((_, i) => (
                   <li key={i}>
-                    <div className="h-72 animate-pulse rounded-2xl bg-slate-200/60" />
+                    <div className="h-full min-h-[19.5rem] animate-pulse rounded-2xl bg-slate-200/60 sm:min-h-[20.5rem]" />
                   </li>
                 ))}
               </ul>
@@ -234,15 +230,15 @@ export function FeedPageContent() {
               <ul className="mt-6 grid list-none grid-cols-1 gap-4 sm:grid-cols-2">
                 {Array.from({ length: 4 }).map((_, i) => (
                   <li key={i}>
-                    <div className="h-72 animate-pulse rounded-2xl bg-slate-200/60" />
+                    <div className="h-full min-h-[19.5rem] animate-pulse rounded-2xl bg-slate-200/60 sm:min-h-[20.5rem]" />
                   </li>
                 ))}
               </ul>
             ) : (
               <>
-                <ul className="mt-6 grid list-none grid-cols-1 gap-4 sm:grid-cols-2">
+                <ul className="mt-6 grid list-none grid-cols-1 gap-4 sm:grid-cols-2 sm:items-stretch">
                   {gridJobs.map((job) => (
-                    <li key={job.id} className="flex min-w-0">
+                    <li key={job.id} className="flex min-h-[19.5rem] min-w-0 sm:min-h-[20.5rem]">
                       <FeedJobCard job={job} user={user} onContactRecorded={handleContactRecorded} />
                     </li>
                   ))}

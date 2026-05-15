@@ -3,8 +3,8 @@
 import Link from "next/link";
 import { useEffect } from "react";
 import type { MeUser } from "@/lib/auth/types";
+import { ThekedaarLogo } from "@/components/brand/ThekedaarLogo";
 import { isWorkerView, viewerModeLabel } from "@/lib/jobs/viewerRole";
-
 type Props = {
   open: boolean;
   user: MeUser;
@@ -45,7 +45,7 @@ export function AppNavDrawer({ open, user, onClose, onSignOut }: Props) {
       />
       <nav className="absolute right-0 top-0 flex h-full w-[min(100%,20rem)] flex-col bg-surface shadow-xl">
         <div className="flex items-center justify-between border-b border-border px-4 py-4">
-          <p className="font-serif text-lg font-bold text-brand">Thekedaar</p>
+          <ThekedaarLogo variant="lockup" href="/feed" />
           <button
             type="button"
             onClick={onClose}
