@@ -2,7 +2,7 @@ import type { Request, Response } from "express";
 import { z } from "zod";
 import type { RequestWithSession } from "../middleware/requireSession";
 import { getUserCapabilities } from "../services/user.service";
-import { countWorkersForFeed, listWorkersForFeed } from "../services/workers.service";
+import { countWorkersForFeed, listEmployerContactedWorkerIds, listWorkersForFeed } from "../services/workers.service";
 
 const WorkersFeedQuerySchema = z.object({
   offset: z.coerce.number().int().min(0).optional().default(0),
@@ -51,9 +51,13 @@ export async function handleWorkersFeedGet(req: Request, res: Response): Promise
     });
 
     let viewerCanHire = false;
+    let contactedWorkerIds: string[] = [];
     if (session?.sub) {
       const caps = await getUserCapabilities(session.sub);
       viewerCanHire = caps.can_hire;
+      if (viewerCanHire) {
+        contactedWorkerIds = await listEmployerContactedWorkerIds(session.sub);
+      }
     }
 
     res.status(200).json({
@@ -63,6 +67,7 @@ export async function handleWorkersFeedGet(req: Request, res: Response): Promise
       limit,
       hasMore: offset + workers.length < total,
       authenticated: Boolean(session),
+      contactedWorkerIds,
     });
   } catch (e: unknown) {
     const msg = e instanceof Error ? e.message : "Workers feed error";

@@ -27,6 +27,7 @@ function mePayload(full: FullUser) {
       phone: full.user.phone,
       name: full.user.name,
       city: full.user.city,
+      sector: full.user.sector,
       current_mode: full.user.current_mode,
       can_seek: full.worker_profile != null,
       can_hire: full.recruiter_profile != null,

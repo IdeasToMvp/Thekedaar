@@ -13,6 +13,11 @@ export function maxFeedJobContacts(plan: BillingPlan): number {
   return 10;
 }
 
+/** Distinct workers an employer may unlock (hire) from the feed per plan. */
+export function maxFeedWorkerContacts(plan: BillingPlan): number {
+  return maxFeedJobContacts(plan);
+}
+
 /** Lifetime job rows for free-tier recruiters. */
 export function maxFreeTierJobListings(): number {
   return 3;

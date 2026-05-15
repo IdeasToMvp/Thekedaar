@@ -30,7 +30,7 @@ export function JobCardActions({ job, user, layout = "stack", onContactRecorded 
       type="button"
       onClick={handlePrimary}
       disabled={loading !== null}
-      className="flex min-h-11 flex-1 items-center justify-center rounded-lg bg-brand text-sm font-semibold text-white transition hover:bg-brand-dark disabled:opacity-50"
+      className="flex min-h-11 flex-1 items-center justify-center rounded-xl bg-brand text-sm font-semibold text-white shadow-sm transition hover:bg-brand-dark disabled:opacity-50"
     >
       {loading === action ? "…" : primaryLabel}
       {contacted ? " ✓" : ""}
@@ -42,7 +42,7 @@ export function JobCardActions({ job, user, layout = "stack", onContactRecorded 
       type="button"
       onClick={handleWhatsApp}
       disabled={!canWhatsApp || loading !== null}
-      className="flex min-h-11 flex-1 items-center justify-center gap-1.5 rounded-lg border border-[#25D366] bg-[#25D366]/10 text-sm font-semibold text-[#128C7E] transition hover:bg-[#25D366]/20 disabled:opacity-50"
+      className="flex min-h-11 flex-1 items-center justify-center gap-1.5 rounded-xl border border-[#25D366] bg-[#25D366]/10 text-sm font-semibold text-[#128C7E] transition hover:bg-[#25D366]/20 disabled:opacity-50"
     >
       <WhatsAppIcon />
       {loading === "whatsapp" ? "…" : waLabel}

@@ -55,6 +55,7 @@ router.post("/", requireSession, async (req, res) => {
       recruiterId: session.sub,
       title: body.title.trim(),
       city: body.city?.trim() || null,
+      sector: body.sector?.trim() || null,
       salary: body.salary ?? null,
       timing: body.timing?.trim() || null,
       accommodation: body.accommodation ?? null,

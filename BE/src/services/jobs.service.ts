@@ -152,6 +152,7 @@ export async function createJob(input: {
   title: string;
   city?: string | null;
   sector?: string | null;
+  fullAddress?: string | null;
   salary?: number | null;
   timing?: string | null;
   accommodation?: boolean | null;
@@ -172,6 +173,7 @@ export async function createJob(input: {
       title: input.title,
       city: input.city ?? null,
       sector: input.sector?.trim() || null,
+      full_address: input.fullAddress?.trim() || null,
       salary: input.salary ?? null,
       timing: input.timing ?? null,
       accommodation: input.accommodation ?? null,
@@ -196,6 +198,7 @@ export async function updateJobForRecruiter(input: {
   title?: string;
   city?: string | null;
   sector?: string | null;
+  fullAddress?: string | null;
   salary?: number | null;
   timing?: string | null;
   accommodation?: boolean | null;
@@ -218,6 +221,7 @@ export async function updateJobForRecruiter(input: {
   if (input.title !== undefined) patch.title = input.title.trim();
   if (input.city !== undefined) patch.city = input.city?.trim() || null;
   if (input.sector !== undefined) patch.sector = input.sector?.trim() || null;
+  if (input.fullAddress !== undefined) patch.full_address = input.fullAddress?.trim() || null;
   if (input.salary !== undefined) patch.salary = input.salary;
   if (input.timing !== undefined) patch.timing = input.timing?.trim() || null;
   if (input.accommodation !== undefined) patch.accommodation = input.accommodation;

@@ -8,6 +8,7 @@ import { ACTIVE_MARKET } from "@/lib/launch";
 import { roleIdsToSkillLabels, skillLabelsToRoleIds } from "@/lib/launch/skillIds";
 import { useFeedUser } from "@/components/feed/FeedUserProvider";
 import { AppNavbar } from "@/components/feed/AppNavbar";
+import { LocalitySelect } from "@/components/feed/LocalitySelect";
 import { SkillMultiSelect } from "./SkillMultiSelect";
 
 export function ProfilePageContent() {
@@ -18,7 +19,6 @@ export function ProfilePageContent() {
   const [success, setSuccess] = useState<string | null>(null);
 
   const [name, setName] = useState("");
-  const [city, setCity] = useState("");
   const [sector, setSector] = useState("");
   const [skillRoleIds, setSkillRoleIds] = useState<string[]>([]);
   const [age, setAge] = useState("");
@@ -40,7 +40,6 @@ export function ProfilePageContent() {
         if (cancelled) return;
         if (data?.user) {
           setName(data.user.name ?? "");
-          setCity(data.user.city ?? ACTIVE_MARKET.displayName);
           setSector(data.user.sector ?? "");
         }
         const wp = data.worker_profile as WorkerProfile | null | undefined;
@@ -82,9 +81,14 @@ export function ProfilePageContent() {
 
     const body: ProfilePatchBody = {
       name: name.trim() || null,
-      city: city.trim() || null,
+      city: ACTIVE_MARKET.displayName,
       sector: sector.trim() || null,
     };
+
+    if (isWorkerAccount(user) && !sector.trim()) {
+      setError("Select your area / sector in Gurugram.");
+      return;
+    }
 
     if (isWorkerAccount(user)) {
       if (skillRoleIds.length === 0) {
@@ -195,25 +199,19 @@ export function ProfilePageContent() {
 
               <label className="mt-4 block text-sm font-medium text-foreground">
                 City
-                <input
-                  type="text"
-                  value={city}
-                  onChange={(e) => setCity(e.target.value)}
-                  placeholder="e.g. Gurugram"
-                  className="mt-1.5 w-full rounded-xl border border-border bg-background px-3 py-2.5 text-sm"
-                />
+                <select
+                  disabled
+                  value={ACTIVE_MARKET.cities[0]?.id ?? "gurugram"}
+                  className="mt-1.5 w-full cursor-default rounded-xl border border-border bg-background px-3 py-2.5 text-sm opacity-90"
+                >
+                  {ACTIVE_MARKET.cities.map((c) => (
+                    <option key={c.id} value={c.id}>
+                      {c.label}
+                    </option>
+                  ))}
+                </select>
               </label>
-              <label className="mt-4 block text-sm font-medium text-foreground">
-                Area / sector
-                <input
-                  type="text"
-                  value={sector}
-                  onChange={(e) => setSector(e.target.value)}
-                  placeholder="e.g. Sector 56, DLF Phase 2 — not full address"
-                  className="mt-1.5 w-full rounded-xl border border-border bg-background px-3 py-2.5 text-sm"
-                />
-              </label>
-              <p className="mt-1 text-xs text-muted">Only city and sector are shown on your profile — never a full address.</p>
+              <LocalitySelect className="mt-4" value={sector} onChange={setSector} required />
             </section>
 
             {isWorkerAccount(user) ? (

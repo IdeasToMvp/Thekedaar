@@ -8,6 +8,7 @@ export type UserRow = {
   name: string | null;
   city: string | null;
   sector: string | null;
+  full_address?: string | null;
   current_mode: AppMode;
   subscription_plan?: string | null;
 };
@@ -44,6 +45,7 @@ export async function upsertIdentityByPhone(input: {
   name?: string | null;
   city?: string | null;
   sector?: string | null;
+  fullAddress?: string | null;
   currentMode?: AppMode;
 }) {
   const sb = supabaseAdmin();
@@ -56,7 +58,8 @@ export async function upsertIdentityByPhone(input: {
         phone: input.phone,
         name: input.name ?? existing?.name ?? null,
         city: input.city ?? existing?.city ?? null,
-        sector: input.sector ?? existing?.sector ?? null,
+        sector: input.sector !== undefined ? input.sector : (existing?.sector ?? null),
+        full_address: input.fullAddress !== undefined ? input.fullAddress : (existing?.full_address ?? null),
         current_mode: input.currentMode ?? existing?.current_mode ?? "worker",
       },
       { onConflict: "phone" },

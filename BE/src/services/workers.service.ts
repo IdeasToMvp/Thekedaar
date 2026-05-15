@@ -1,5 +1,7 @@
 import { supabaseAdmin } from "./supabase.service";
+import { getUserById } from "./user.service";
 import { formatPublicLocation } from "../utils/publicLocation";
+import { maxFeedWorkerContacts, normalizePlan, type BillingPlan } from "../utils/planLimits";
 
 export type WorkerUserJoin = {
   id: string;
@@ -134,5 +136,180 @@ export async function listWorkersForFeed(input: {
   const rows = (data ?? []) as WorkerFeedRowRaw[];
   return {
     workers: rows.map((row) => mapWorkerToFeedApi(row, input.viewerId)),
+  };
+}
+
+export type WorkerHireApiWorker = WorkerFeedApiWorker & {
+  phone: string;
+  hiredAt: string;
+};
+
+async function fetchWorkerFeedRow(workerId: string): Promise<WorkerFeedRowRaw | null> {
+  const sb = supabaseAdmin();
+  const { data, error } = await sb
+    .from("worker_profiles")
+    .select(
+      "user_id, role, skills, age, gender, has_aadhaar, experience_years, expected_salary, availability, users!inner(id, name, city, sector, phone, created_at)",
+    )
+    .eq("user_id", workerId)
+    .maybeSingle();
+  if (error) throw error;
+  return (data as WorkerFeedRowRaw | null) ?? null;
+}
+
+export async function hasEmployerHiredWorker(employerId: string, workerId: string): Promise<boolean> {
+  const sb = supabaseAdmin();
+  const { data, error } = await sb
+    .from("worker_feed_contacts")
+    .select("id")
+    .eq("employer_id", employerId)
+    .eq("worker_id", workerId)
+    .maybeSingle();
+  if (error) throw error;
+  return !!data;
+}
+
+export async function countEmployerWorkerContacts(employerId: string): Promise<number> {
+  const sb = supabaseAdmin();
+  const { count, error } = await sb
+    .from("worker_feed_contacts")
+    .select("id", { count: "exact", head: true })
+    .eq("employer_id", employerId);
+  if (error) throw error;
+  return count ?? 0;
+}
+
+export async function listEmployerContactedWorkerIds(employerId: string): Promise<string[]> {
+  const sb = supabaseAdmin();
+  const { data, error } = await sb
+    .from("worker_feed_contacts")
+    .select("worker_id")
+    .eq("employer_id", employerId);
+  if (error) throw error;
+  return (data ?? []).map((r) => (r as { worker_id: string }).worker_id);
+}
+
+export async function recordEmployerWorkerHire(input: {
+  employerId: string;
+  workerId: string;
+}): Promise<{ recorded: boolean; used: number; max: number; worker: WorkerHireApiWorker }> {
+  if (input.employerId === input.workerId) {
+    throw new Error("You cannot hire your own profile");
+  }
+
+  const row = await fetchWorkerFeedRow(input.workerId);
+  if (!row) throw new Error("Worker not found");
+
+  const employer = await getUserById(input.employerId);
+  if (!employer) throw new Error("User not found");
+  const plan = normalizePlan(employer.subscription_plan ?? undefined);
+  const max = maxFeedWorkerContacts(plan);
+
+  const already = await hasEmployerHiredWorker(input.employerId, input.workerId);
+  const usedBefore = await countEmployerWorkerContacts(input.employerId);
+
+  if (!already) {
+    if (usedBefore >= max) {
+      throw new Error(
+        `Your ${plan} plan allows contacting up to ${max} different workers. Upgrade to Pro for 50.`,
+      );
+    }
+    const sb = supabaseAdmin();
+    const { error } = await sb.from("worker_feed_contacts").insert({
+      employer_id: input.employerId,
+      worker_id: input.workerId,
+      action: "hire",
+    });
+    if (error) throw error;
+  }
+
+  const sb = supabaseAdmin();
+  const { data: contactRow, error: cErr } = await sb
+    .from("worker_feed_contacts")
+    .select("created_at")
+    .eq("employer_id", input.employerId)
+    .eq("worker_id", input.workerId)
+    .maybeSingle();
+  if (cErr) throw cErr;
+
+  const mapped = mapWorkerToFeedApi(row);
+  const u = resolveWorkerUser(row.users);
+  const worker: WorkerHireApiWorker = {
+    ...mapped,
+    phone: u.phone ?? "",
+    contactWaDigits: waDigitsFromPhone(u.phone ?? ""),
+    hiredAt: (contactRow as { created_at: string } | null)?.created_at ?? new Date().toISOString(),
+  };
+
+  const used = already ? usedBefore : usedBefore + 1;
+  return { recorded: !already, used, max, worker };
+}
+
+export type EmployerWorkerContactActivity = {
+  workerId: string;
+  hiredAt: string;
+  worker: WorkerHireApiWorker;
+};
+
+export async function listEmployerContactedWorkers(employerId: string, limit = 50): Promise<EmployerWorkerContactActivity[]> {
+  const sb = supabaseAdmin();
+  const { data: contacts, error: cErr } = await sb
+    .from("worker_feed_contacts")
+    .select("worker_id, created_at")
+    .eq("employer_id", employerId)
+    .order("created_at", { ascending: false })
+    .limit(limit);
+  if (cErr) throw cErr;
+  const rows = (contacts ?? []) as { worker_id: string; created_at: string }[];
+  if (rows.length === 0) return [];
+
+  const workerIds = rows.map((r) => r.worker_id);
+  const { data: profiles, error: pErr } = await sb
+    .from("worker_profiles")
+    .select(
+      "user_id, role, skills, age, gender, has_aadhaar, experience_years, expected_salary, availability, users!inner(id, name, city, sector, phone, created_at)",
+    )
+    .in("user_id", workerIds);
+  if (pErr) throw pErr;
+
+  const profileRows = (profiles ?? []) as WorkerFeedRowRaw[];
+  const profileMap = new Map(profileRows.map((r) => [resolveWorkerUser(r.users).id, r]));
+
+  return rows
+    .map((r) => {
+      const profile = profileMap.get(r.worker_id);
+      if (!profile) return null;
+      const mapped = mapWorkerToFeedApi(profile);
+      const u = resolveWorkerUser(profile.users);
+      const worker: WorkerHireApiWorker = {
+        ...mapped,
+        phone: u.phone ?? "",
+        contactWaDigits: waDigitsFromPhone(u.phone ?? ""),
+        hiredAt: r.created_at,
+      };
+      return { workerId: r.worker_id, hiredAt: r.created_at, worker };
+    })
+    .filter((x): x is EmployerWorkerContactActivity => x != null);
+}
+
+export async function buildWorkerHireLimits(employerId: string): Promise<{
+  plan: BillingPlan;
+  workerContacts: { used: number; max: number; remaining: number };
+  contactedWorkerIds: string[];
+}> {
+  const employer = await getUserById(employerId);
+  if (!employer) throw new Error("User not found");
+  const plan = normalizePlan(employer.subscription_plan ?? undefined);
+  const used = await countEmployerWorkerContacts(employerId);
+  const max = maxFeedWorkerContacts(plan);
+  const contactedWorkerIds = await listEmployerContactedWorkerIds(employerId);
+  return {
+    plan,
+    workerContacts: {
+      used,
+      max,
+      remaining: Math.max(0, max - used),
+    },
+    contactedWorkerIds,
   };
 }

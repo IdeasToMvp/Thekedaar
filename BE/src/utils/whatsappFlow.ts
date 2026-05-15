@@ -104,14 +104,14 @@ export function availabilityMenuPrompt(): string {
   );
 }
 
-export function cityPrompt(): string {
-  return "City? (e.g. Gurugram, Delhi — *sirf sheher*, poora address nahi)\n(back = previous)";
+export function cityMenuPrompt(): string {
+  return "Sheher?\n\n1) Gurugram\n\nReply *1*\n(back = previous)";
 }
 
-export function sectorPrompt(): string {
+export function fullAddressPrompt(): string {
   return (
-    "Area / sector name? (e.g. Sector 56, DLF Phase 2, Sikanderpur)\n" +
-    "*Poora ghar ka address mat likho*\n(back = previous)"
+    "Ab *poora address* bhejo (ghar/flat number, gali, landmark).\n" +
+    "Ye public feed par nahi dikhega — sirf records ke liye.\n(back = previous)"
   );
 }
 

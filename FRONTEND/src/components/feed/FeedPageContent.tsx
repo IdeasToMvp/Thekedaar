@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import type { FeedJob, FeedLimits, FeedResponse } from "@/lib/jobs/types";
-import type { FeedWorker, WorkersFeedResponse } from "@/lib/workers/types";
+import type { FeedWorker, HiredWorker, WorkerHireLimits, WorkersFeedResponse } from "@/lib/workers/types";
 import { isEmployerAccount, isWorkerAccount } from "@/lib/auth/accountRole";
 import { filterWorkersBySalary, filterWorkersToLaunchMarket } from "@/lib/workers/filterWorkers";
 import {
@@ -12,7 +12,6 @@ import {
   filterJobsBySalary,
   filterJobsToLaunchMarket,
   launchHighlights,
-  pickFeaturedJob,
   roleToApiParam,
   type SalaryBandId,
 } from "@/lib/launch";
@@ -20,7 +19,6 @@ import { useFeedUser } from "./FeedUserProvider";
 import { AppNavbar } from "./AppNavbar";
 import { FeedSidebar } from "./FeedSidebar";
 import { FeedMobileFilters } from "./FeedMobileFilters";
-import { FeaturedJobCard } from "./FeaturedJobCard";
 import { FeedJobCard } from "./FeedJobCard";
 import { WorkerFeedCard } from "./WorkerFeedCard";
 import { NearbyHighlights } from "./NearbyHighlights";
@@ -49,6 +47,8 @@ export function FeedPageContent() {
   const [workersLoadingMore, setWorkersLoadingMore] = useState(false);
   const [jobsError, setJobsError] = useState<string | null>(null);
   const [workersError, setWorkersError] = useState<string | null>(null);
+  const [contactedWorkerIds, setContactedWorkerIds] = useState<Set<string>>(new Set());
+  const [workerContactsRemaining, setWorkerContactsRemaining] = useState(10);
 
   const [roleId, setRoleId] = useState("");
   const [salaryBand, setSalaryBand] = useState<SalaryBandId>("all");
@@ -100,9 +100,19 @@ export function FeedPageContent() {
       setWorkersHasMore(data.hasMore);
       setWorkersOffset(data.offset + data.workers.length);
       setWorkers((prev) => (append ? [...prev, ...scoped] : scoped));
+      if (!append && data.contactedWorkerIds) {
+        setContactedWorkerIds(new Set(data.contactedWorkerIds));
+      }
     },
     [cityId, roleId, sort],
   );
+
+  const handleWorkerHired = useCallback((hired: HiredWorker, limits?: WorkerHireLimits) => {
+    setContactedWorkerIds((prev) => new Set(prev).add(hired.id));
+    if (limits?.workerContacts) {
+      setWorkerContactsRemaining(limits.workerContacts.remaining);
+    }
+  }, []);
 
   useEffect(() => {
     if (!worker) return;
@@ -124,6 +134,21 @@ export function FeedPageContent() {
       cancelled = true;
     };
   }, [fetchJobsFeed, worker]);
+
+  useEffect(() => {
+    if (!employer || !user) return;
+    fetch("/api/workers/contacted")
+      .then((r) => r.json())
+      .then((data: { limits?: WorkerHireLimits; contacted?: { workerId: string }[] }) => {
+        if (data.limits?.workerContacts) {
+          setWorkerContactsRemaining(data.limits.workerContacts.remaining);
+        }
+        if (data.contacted?.length) {
+          setContactedWorkerIds(new Set(data.contacted.map((c) => c.workerId)));
+        }
+      })
+      .catch(() => {});
+  }, [employer, user]);
 
   useEffect(() => {
     if (!employer) return;
@@ -151,12 +176,6 @@ export function FeedPageContent() {
     () => filterWorkersBySalary(workers, salaryBand),
     [workers, salaryBand],
   );
-
-  const featured = useMemo(() => pickFeaturedJob(salaryFilteredJobs), [salaryFilteredJobs]);
-  const gridJobs = useMemo(() => {
-    if (!featured) return salaryFilteredJobs;
-    return salaryFilteredJobs.filter((j) => j.id !== featured.id);
-  }, [salaryFilteredJobs, featured]);
 
   const highlights = useMemo(() => launchHighlights(salaryFilteredJobs), [salaryFilteredJobs]);
 
@@ -249,23 +268,16 @@ export function FeedPageContent() {
 
             {worker ? (
               <>
-                {user && featured && !jobsLoading && !jobsError ? (
-                  <section className="mt-6" aria-label="Featured job">
-                    <p className="mb-3 text-xs font-semibold uppercase tracking-wider text-muted">Featured</p>
-                    <FeaturedJobCard job={featured} user={user} onContactRecorded={handleContactRecorded} />
-                  </section>
-                ) : null}
-
                 {jobsLoading ? (
                   <CardSkeletonGrid />
-                ) : gridJobs.length === 0 && !jobsError ? (
+                ) : salaryFilteredJobs.length === 0 && !jobsError ? (
                   <EmptyState message={`No jobs match these filters in ${displayName}.`} />
                 ) : !user ? (
                   <CardSkeletonGrid />
                 ) : (
                   <>
                     <ul className="mt-6 grid list-none grid-cols-1 gap-4 sm:grid-cols-2 sm:items-stretch">
-                      {gridJobs.map((job) => (
+                      {salaryFilteredJobs.map((job) => (
                         <li key={job.id} className="flex min-h-[19.5rem] min-w-0 sm:min-h-[20.5rem]">
                           <FeedJobCard job={job} user={user} onContactRecorded={handleContactRecorded} />
                         </li>
@@ -302,7 +314,13 @@ export function FeedPageContent() {
                 <ul className="mt-6 grid list-none grid-cols-1 gap-4 sm:grid-cols-2 sm:items-stretch">
                   {salaryFilteredWorkers.map((w) => (
                     <li key={w.id} className="flex min-h-[19.5rem] min-w-0 sm:min-h-[20.5rem]">
-                      <WorkerFeedCard worker={w} user={user} />
+                      <WorkerFeedCard
+                        worker={w}
+                        user={user}
+                        hired={contactedWorkerIds.has(w.id)}
+                        contactsRemaining={workerContactsRemaining}
+                        onHired={handleWorkerHired}
+                      />
                     </li>
                   ))}
                 </ul>

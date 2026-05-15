@@ -1,28 +1,25 @@
 import type { FeedJob } from "@/lib/jobs/types";
-import { getJobListingDetailItems } from "@/lib/jobs/listingDetails";
+import { getJobDetailCells, getJobRequirementCells } from "@/lib/jobs/listingDetails";
+import { FeedDetailGrid } from "./FeedDetailGrid";
 
 type Props = {
   job: FeedJob;
-  /** Tighter spacing for grid cards */
-  compact?: boolean;
   className?: string;
 };
 
-export function JobListingMeta({ job, compact = false, className = "" }: Props) {
-  const items = getJobListingDetailItems(job);
-  if (items.length === 0) return null;
+export function JobListingMeta({ job, className = "" }: Props) {
+  const details = getJobDetailCells(job);
+  const requirements = getJobRequirementCells(job);
 
   return (
-    <ul
-      className={`list-none space-y-1 ${compact ? "text-xs" : "text-sm"} ${className}`.trim()}
-      aria-label="Job details"
-    >
-      {items.map((item) => (
-        <li key={item.key} className="flex gap-1.5 leading-snug">
-          <span className="shrink-0 font-medium text-muted">{item.label}:</span>
-          <span className="min-w-0 text-foreground">{item.value}</span>
-        </li>
-      ))}
-    </ul>
+    <div className={className}>
+      <FeedDetailGrid items={details} />
+      {requirements.length > 0 ? (
+        <div className="mt-2 rounded-xl border border-brand/20 bg-brand/5 px-3 py-2.5">
+          <p className="text-[10px] font-semibold uppercase tracking-wide text-brand-dark">Candidate requirements</p>
+          <p className="mt-1 text-xs font-medium leading-relaxed text-foreground">{requirements[0]?.value}</p>
+        </div>
+      ) : null}
+    </div>
   );
 }

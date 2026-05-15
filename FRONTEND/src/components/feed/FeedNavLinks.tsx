@@ -41,6 +41,13 @@ export function FeedNavLinks({ user, className = "", onNavigate }: Props) {
           >
             My Listings
           </Link>
+          <Link
+            href="/feed/contacted"
+            onClick={onNavigate}
+            className={linkClass(pathname === "/feed/contacted")}
+          >
+            Contacted
+          </Link>
         </>
       ) : null}
       <Link href="/feed/profile" onClick={onNavigate} className={linkClass(pathname === "/feed/profile")}>

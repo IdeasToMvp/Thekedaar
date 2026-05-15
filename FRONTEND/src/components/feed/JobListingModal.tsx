@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import type { FeedJob } from "@/lib/jobs/types";
 import { ACTIVE_MARKET, cityToApiParam, getLaunchRole } from "@/lib/launch";
 import { skillLabelToRoleId } from "@/lib/launch/skillIds";
+import { LocalitySelect } from "./LocalitySelect";
 
 export type JobListingFormValues = {
   roleId: string;
@@ -114,7 +115,7 @@ export function JobListingModal({ open, cityId, job, onClose, onSuccess }: Props
 
     const sector = form.sector.trim();
     if (!sector) {
-      setError("Enter area or sector (e.g. Sector 56) — not a full address.");
+      setError("Select area / sector in Gurugram.");
       return;
     }
 
@@ -213,18 +214,13 @@ export function JobListingModal({ open, cityId, job, onClose, onSuccess }: Props
             </select>
           </label>
 
-          <label className="mt-4 block text-sm font-medium text-foreground">
-            Area / sector
-            <input
-              type="text"
-              required
-              value={form.sector}
-              onChange={(e) => setForm((f) => ({ ...f, sector: e.target.value }))}
-              placeholder="e.g. Sector 56, Sikanderpur"
-              className="mt-1.5 w-full rounded-xl border border-border bg-background px-3 py-2.5 text-sm"
-            />
-          </label>
-          <p className="mt-1 text-xs text-muted">City is {cityToApiParam(cityId) ?? ACTIVE_MARKET.displayName}. Do not enter a full street address.</p>
+          <LocalitySelect
+            className="mt-4"
+            value={form.sector}
+            onChange={(sector) => setForm((f) => ({ ...f, sector }))}
+            required
+            hint={`City is ${cityToApiParam(cityId) ?? ACTIVE_MARKET.displayName}. Street address is collected on WhatsApp only — not shown on the feed.`}
+          />
 
           <label className="mt-4 block text-sm font-medium text-foreground">
             Monthly salary (₹)
