@@ -1,6 +1,8 @@
+import { SUPPORT_EMAIL } from "@/lib/supportEmail";
+
 export const LANDING_CONTACT = {
   city: "Gurugram, Haryana",
-  email: "hello@thekedaar.com",
+  email: SUPPORT_EMAIL,
   whatsappHint: "Message us on WhatsApp to get started or request a sign-in link.",
 };
 

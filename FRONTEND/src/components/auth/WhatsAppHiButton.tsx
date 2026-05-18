@@ -1,3 +1,4 @@
+import { SUPPORT_EMAIL } from "@/lib/supportEmail";
 import { whatsAppHiUrl } from "@/lib/whatsappLinks";
 
 function WhatsAppIcon({ className = "h-5 w-5" }: { className?: string }) {
@@ -20,7 +21,11 @@ export function WhatsAppHiButton({ className = "", label = "Send Hi on WhatsApp"
   if (!url) {
     return (
       <p className="text-sm text-muted">
-        WhatsApp is not configured yet. Please try again later or contact support.
+        WhatsApp is not configured yet. Please try again later or email{" "}
+        <a href={`mailto:${SUPPORT_EMAIL}`} className="font-medium text-brand hover:underline">
+          {SUPPORT_EMAIL}
+        </a>
+        .
       </p>
     );
   }
