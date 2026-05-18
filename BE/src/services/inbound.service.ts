@@ -54,7 +54,12 @@ import {
   WA_AVAILABILITY_OPTIONS,
   WA_URGENCY_OPTIONS,
 } from "../utils/whatsappFlow";
-import { cityMenuPrompt, localityMenuPrompt, parseCityMenuChoice } from "../data/cityLocalities";
+import {
+  cityMenuPrompt,
+  localityMenuPrompt,
+  parseCityMenuChoice,
+  resolveLocalityInput,
+} from "../data/cityLocalities";
 import { formatPublicLocation, resolveLocationFromInputs } from "../utils/publicLocation";
 
 type FlowRole = "worker" | "recruiter";
@@ -551,12 +556,13 @@ async function handleWorkerFlow(input: {
       await sendWhatsAppText(phone, localityMenuPrompt(String(meta.launchCityId ?? meta.city ?? "gurugram"), localityPage(meta)));
       return;
     }
-    const areaRaw = text.trim();
-    if (areaRaw.length < 2) {
-      await sendWhatsAppText(phone, "Area chuniye (number) ya naam likho.\n\n" + localityMenuPrompt(String(meta.launchCityId ?? meta.city ?? "gurugram"), localityPage(meta)));
+    const cityKey = String(meta.launchCityId ?? meta.city ?? "gurugram");
+    const area = resolveLocalityInput(cityKey, text, localityPage(meta));
+    if (!area) {
+      await sendWhatsAppText(phone, "Area chuniye (number) ya naam likho.\n\n" + localityMenuPrompt(cityKey, localityPage(meta)));
       return;
     }
-    meta.areaRaw = areaRaw;
+    meta.areaRaw = area;
     await setConversationState(phone, "WORKER_FULL_ADDRESS", historyPush(meta, step));
     await sendWhatsAppText(phone, promptForStep("worker", "WORKER_FULL_ADDRESS"));
     return;
@@ -684,7 +690,7 @@ async function handleWorkerFlow(input: {
       await sendWhatsAppText(phone, promptForStep("worker", "WORKER_AVAILABILITY_CUSTOM"));
       return;
     }
-    meta.availability = meta.availability ?? choice;
+    meta.availability = choice;
     await finishWorkerOnboarding(phone, meta);
     return;
   }
@@ -724,10 +730,15 @@ async function finishWorkerOnboarding(phone: string, meta: Record<string, unknow
     availability: String(meta.availability ?? "").trim() || null,
   });
 
-  const matches = await findJobsForWorker({
-    city: (meta.city as string | undefined) ?? null,
-    skills,
-  });
+  let matches: Awaited<ReturnType<typeof findJobsForWorker>> = [];
+  try {
+    matches = await findJobsForWorker({
+      city: (meta.city as string | undefined) ?? null,
+      skills,
+    });
+  } catch {
+    matches = [];
+  }
 
   await clearConversationState(phone);
 
@@ -819,12 +830,13 @@ async function handleRecruiterFlow(input: {
       await sendWhatsAppText(phone, localityMenuPrompt(String(meta.launchCityId ?? meta.city ?? "gurugram"), localityPage(meta)));
       return;
     }
-    const areaRaw = text.trim();
-    if (areaRaw.length < 2) {
-      await sendWhatsAppText(phone, "Area chuniye (number) ya naam likho.\n\n" + localityMenuPrompt(String(meta.launchCityId ?? meta.city ?? "gurugram"), localityPage(meta)));
+    const cityKey = String(meta.launchCityId ?? meta.city ?? "gurugram");
+    const area = resolveLocalityInput(cityKey, text, localityPage(meta));
+    if (!area) {
+      await sendWhatsAppText(phone, "Area chuniye (number) ya naam likho.\n\n" + localityMenuPrompt(cityKey, localityPage(meta)));
       return;
     }
-    meta.areaRaw = areaRaw;
+    meta.areaRaw = area;
     await setConversationState(phone, "RECRUITER_FULL_ADDRESS", historyPush(meta, step));
     await sendWhatsAppText(phone, promptForStep("recruiter", "RECRUITER_FULL_ADDRESS"));
     return;

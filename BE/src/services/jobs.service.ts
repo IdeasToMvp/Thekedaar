@@ -446,7 +446,9 @@ export async function findJobsForWorker(input: {
   const sb = supabaseAdmin();
   let q = sb
     .from("jobs")
-    .select("id,title,city,salary,timing,accommodation,created_at,recruiter_id,listing_status, users!inner(account_status)")
+    .select(
+      "id,title,city,salary,timing,accommodation,created_at,recruiter_id,listing_status, users!jobs_recruiter_id_fkey(account_status)",
+    )
     .eq("listing_status", "open")
     .eq("users.account_status", "active")
     .order("created_at", { ascending: false })

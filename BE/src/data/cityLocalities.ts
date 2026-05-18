@@ -271,17 +271,34 @@ export function cityMenuPrompt(): string {
   return "Sheher chuniye (number reply karein):\n\n" + lines.join("\n") + "\n\n(back = previous)";
 }
 
+export const LOCALITY_MENU_PAGE_SIZE = 12;
+
+/** Resolve area from the numbered menu on the current page (WhatsApp replies 1, 2, 3…). */
+export function parseLocalityMenuChoice(
+  cityIdOrApiValue: string,
+  input: string,
+  page = 0,
+  pageSize = LOCALITY_MENU_PAGE_SIZE,
+): string | null {
+  const localities = getLocalitiesForCity(cityIdOrApiValue);
+  const start = page * pageSize;
+  const slice = localities.slice(start, start + pageSize);
+  const t = input.trim();
+  if (!t || slice.length === 0) return null;
+
+  const n = Number(t.replace(/\D/g, ""));
+  if (Number.isInteger(n) && n >= 1 && n <= slice.length) {
+    return slice[n - 1] ?? null;
+  }
+  return null;
+}
+
 export function matchLocality(cityIdOrApiValue: string, input: string): string | null {
   const localities = getLocalitiesForCity(cityIdOrApiValue);
   if (localities.length === 0) return null;
 
   const t = input.trim();
   if (!t) return null;
-
-  const n = Number(t.replace(/\D/g, ""));
-  if (Number.isInteger(n) && n >= 1 && n <= localities.length) {
-    return localities[n - 1] ?? null;
-  }
 
   const needle = norm(t);
   for (const loc of localities) {
@@ -292,13 +309,32 @@ export function matchLocality(cityIdOrApiValue: string, input: string): string |
   const sectorNum = needle.match(/(?:sector|sec)\s*(\d{1,3})/);
   if (sectorNum) {
     const label = `Sector ${sectorNum[1]}`;
-    if (localities.some((x) => norm(x) === norm(label))) return label;
+    const hit = localities.find((x) => norm(x) === norm(label));
+    if (hit) return hit;
   }
 
   return null;
 }
 
-export function localityMenuPrompt(cityIdOrApiValue: string, page = 0, pageSize = 12): string {
+/** Menu number on current page, else fuzzy name match, else raw text if long enough. */
+export function resolveLocalityInput(
+  cityIdOrApiValue: string,
+  input: string,
+  page = 0,
+): string | null {
+  const fromMenu = parseLocalityMenuChoice(cityIdOrApiValue, input, page);
+  if (fromMenu) return fromMenu;
+  const fromName = matchLocality(cityIdOrApiValue, input);
+  if (fromName) return fromName;
+  const raw = input.trim();
+  return raw.length >= 2 ? raw : null;
+}
+
+export function localityMenuPrompt(
+  cityIdOrApiValue: string,
+  page = 0,
+  pageSize = LOCALITY_MENU_PAGE_SIZE,
+): string {
   const localities = getLocalitiesForCity(cityIdOrApiValue);
   const city = getCityEntry(cityIdOrApiValue);
   const cityLabel = city?.label ?? "your city";
