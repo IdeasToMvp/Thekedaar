@@ -10,8 +10,10 @@ import {
 } from "../services/recruiterBilling.service";
 import {
   createTopUpOrder,
+  fetchPayment,
   fetchTopUpOrder,
   isRazorpayConfigured,
+  isUpiPayment,
   razorpayKeyId,
   verifyPaymentSignature,
 } from "../services/razorpay.service";
@@ -130,6 +132,23 @@ router.post("/topup/verify", requireSession, async (req, res) => {
       })
     ) {
       return res.status(400).json({ error: "Payment verification failed", code: "INVALID_SIGNATURE" });
+    }
+
+    const payment = await fetchPayment(razorpay_payment_id);
+    if (!isUpiPayment(payment.method)) {
+      return res.status(400).json({
+        error: "Only UPI payments are accepted for top-up",
+        code: "PAYMENT_METHOD_NOT_ALLOWED",
+      });
+    }
+    if (payment.order_id && payment.order_id !== razorpay_order_id) {
+      return res.status(400).json({ error: "Payment does not match order", code: "ORDER_MISMATCH" });
+    }
+    if (payment.status !== "captured") {
+      return res.status(400).json({
+        error: "Payment was not completed",
+        code: "PAYMENT_NOT_CAPTURED",
+      });
     }
 
     const order = await fetchTopUpOrder(razorpay_order_id);

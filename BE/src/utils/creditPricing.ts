@@ -6,7 +6,7 @@ export const PRICE_LISTING_PAISE = 4_900; // ₹49
 export const PRICE_WORKER_UNLOCK_PAISE = 2_000; // ₹20
 export const PRICE_URGENT_BADGE_PAISE = 2_900; // ₹29
 
-export const MIN_TOPUP_PAISE = 5_000; // ₹50
+export const MIN_TOPUP_PAISE = 4_900; // ₹49
 
 export function isUrgentUrgency(urgency: string | null | undefined): boolean {
   const t = (urgency || "").toLowerCase();

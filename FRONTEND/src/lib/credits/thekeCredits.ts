@@ -5,7 +5,10 @@ export const THEKE_CREDITS_NAME = "Theke Credits";
 export const THEKE_CREDITS_RUPEE_RATIO = 1;
 
 /** Minimum top-up in rupees (wallet UI). */
-export const THEKE_CREDITS_MIN_TOPUP_INR = 50;
+export const THEKE_CREDITS_MIN_TOPUP_INR = 49;
+
+/** Maximum single top-up in rupees. */
+export const THEKE_CREDITS_MAX_TOPUP_INR = 50_000;
 
 export const THEKE_CREDITS_POLICIES = [
   {

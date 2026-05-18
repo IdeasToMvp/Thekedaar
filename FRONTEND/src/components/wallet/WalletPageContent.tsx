@@ -12,10 +12,11 @@ import {
   THEKE_CREDITS_MIN_TOPUP_INR,
   THEKE_CREDITS_NAME,
 } from "@/lib/credits/thekeCredits";
+import { validateTopUpAmountInr } from "@/lib/credits/topupValidation";
 import type { RecruiterBilling, WalletResponse, WalletTopUpConfig } from "@/lib/credits/types";
 import { WalletPricingTable } from "./WalletPricingTable";
 
-const TOPUP_OPTIONS = [50, 100, 200, 500] as const;
+const TOPUP_PRESETS = [49, 100, 200, 500] as const;
 
 function WalletSection({
   title,
@@ -54,6 +55,8 @@ export function WalletPageContent() {
   const [topUpConfig, setTopUpConfig] = useState<WalletTopUpConfig | null>(null);
   const [loading, setLoading] = useState(true);
   const [topUpLoading, setTopUpLoading] = useState<number | null>(null);
+  const [amountInput, setAmountInput] = useState("100");
+  const [amountError, setAmountError] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
 
@@ -94,15 +97,32 @@ export function WalletPageContent() {
     };
   }, [user, userLoading, router, loadWallet]);
 
+  function resolveTopUpAmount(): number | null {
+    const check = validateTopUpAmountInr(amountInput);
+    if (!check.ok) {
+      setAmountError(check.error);
+      return null;
+    }
+    setAmountError(null);
+    return check.amountInr;
+  }
+
   async function handleTopUp(amountInr: number) {
-    setTopUpLoading(amountInr);
+    const check = validateTopUpAmountInr(amountInr);
+    if (!check.ok) {
+      setAmountError(check.error);
+      return;
+    }
+
+    setTopUpLoading(check.amountInr);
     setError(null);
     setSuccess(null);
+    setAmountError(null);
 
     try {
       if (topUpConfig?.razorpayEnabled) {
         const result = await openRazorpayTopUp({
-          amountInr,
+          amountInr: check.amountInr,
           userName: user?.name,
           userPhone: user?.phone,
         });
@@ -113,7 +133,7 @@ export function WalletPageContent() {
           return;
         }
         await loadWallet();
-        setSuccess(`₹${amountInr} added via Razorpay.`);
+        setSuccess(`₹${check.amountInr} added via UPI.`);
         return;
       }
 
@@ -121,13 +141,13 @@ export function WalletPageContent() {
         const resp = await fetch("/api/wallet/topup/dev", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ amountInr }),
+          body: JSON.stringify({ amountInr: check.amountInr }),
         });
         const data = await resp.json();
         if (!resp.ok) throw new Error(data.error || "Top-up failed");
         if (data.billing) setBilling(data.billing);
         else await loadWallet();
-        setSuccess(`₹${amountInr} added (dev mode).`);
+        setSuccess(`₹${check.amountInr} added (dev mode).`);
         return;
       }
 
@@ -152,7 +172,13 @@ export function WalletPageContent() {
 
   if (!user) return null;
 
-  const payLabel = topUpConfig?.razorpayEnabled ? "Pay with Razorpay" : topUpConfig?.devTopUpEnabled ? "Add (dev)" : "Unavailable";
+  const payLabel = topUpConfig?.razorpayEnabled
+    ? "Pay with UPI"
+    : topUpConfig?.devTopUpEnabled
+      ? "Add (dev)"
+      : "Unavailable";
+
+  const paymentsEnabled = Boolean(topUpConfig?.razorpayEnabled || topUpConfig?.devTopUpEnabled);
 
   return (
     <div className="flex h-dvh flex-col overflow-hidden bg-background">
@@ -227,32 +253,78 @@ export function WalletPageContent() {
               <aside className="order-1 space-y-6 lg:order-2 lg:col-span-5 lg:sticky lg:top-6">
                 <WalletSection
                   title="Add credits"
-                  description={`Min ₹${THEKE_CREDITS_MIN_TOPUP_INR}. Secure payment via Razorpay (UPI / card).`}
+                  description={`Min ₹${THEKE_CREDITS_MIN_TOPUP_INR}. UPI only via Razorpay.`}
                   icon="➕"
                 >
-                  <div className="grid grid-cols-2 gap-2">
-                    {TOPUP_OPTIONS.map((amt) => (
+                  <label className="block text-xs font-medium text-muted" htmlFor="topup-amount">
+                    Amount (₹)
+                  </label>
+                  <div className="mt-1.5 flex overflow-hidden rounded-xl border border-border bg-background shadow-sm focus-within:border-brand focus-within:ring-2 focus-within:ring-brand/20">
+                    <span className="flex items-center border-r border-border bg-slate-50 px-3 text-sm font-semibold text-muted">
+                      ₹
+                    </span>
+                    <input
+                      id="topup-amount"
+                      type="number"
+                      inputMode="numeric"
+                      min={THEKE_CREDITS_MIN_TOPUP_INR}
+                      step={1}
+                      value={amountInput}
+                      disabled={topUpLoading !== null}
+                      onChange={(e) => {
+                        setAmountInput(e.target.value);
+                        if (amountError) setAmountError(null);
+                      }}
+                      className="min-h-11 w-full bg-transparent px-3 text-sm font-semibold text-foreground outline-none disabled:opacity-50"
+                      aria-invalid={amountError ? true : undefined}
+                      aria-describedby={amountError ? "topup-amount-error" : undefined}
+                    />
+                  </div>
+                  {amountError ? (
+                    <p id="topup-amount-error" className="mt-1.5 text-xs text-red-600" role="alert">
+                      {amountError}
+                    </p>
+                  ) : (
+                    <p className="mt-1.5 text-xs text-muted">Minimum ₹{THEKE_CREDITS_MIN_TOPUP_INR}</p>
+                  )}
+
+                  <p className="mt-4 text-xs font-medium text-muted">Quick amounts</p>
+                  <div className="mt-2 grid grid-cols-2 gap-2">
+                    {TOPUP_PRESETS.map((amt) => (
                       <button
                         key={amt}
                         type="button"
-                        disabled={topUpLoading !== null || (!topUpConfig?.razorpayEnabled && !topUpConfig?.devTopUpEnabled)}
-                        onClick={() => void handleTopUp(amt)}
-                        className="min-h-11 rounded-xl border border-border bg-background text-sm font-semibold text-foreground shadow-sm transition hover:border-brand hover:bg-brand/5 disabled:cursor-not-allowed disabled:opacity-50"
+                        disabled={topUpLoading !== null || !paymentsEnabled}
+                        onClick={() => {
+                          setAmountInput(String(amt));
+                          setAmountError(null);
+                        }}
+                        className={`min-h-10 rounded-xl border text-sm font-semibold transition disabled:cursor-not-allowed disabled:opacity-50 ${
+                          amountInput === String(amt)
+                            ? "border-brand bg-brand/10 text-brand-dark"
+                            : "border-border bg-background text-foreground hover:border-brand hover:bg-brand/5"
+                        }`}
                       >
-                        {topUpLoading === amt ? "…" : `₹${amt}`}
+                        ₹{amt}
                       </button>
                     ))}
                   </div>
+
                   <button
                     type="button"
-                    disabled={topUpLoading !== null || (!topUpConfig?.razorpayEnabled && !topUpConfig?.devTopUpEnabled)}
-                    onClick={() => void handleTopUp(100)}
-                    className="mt-3 flex min-h-12 w-full items-center justify-center rounded-full bg-brand text-sm font-semibold text-white shadow-lg shadow-brand/25 transition hover:bg-brand-dark disabled:cursor-not-allowed disabled:opacity-50"
+                    disabled={topUpLoading !== null || !paymentsEnabled}
+                    onClick={() => {
+                      const amount = resolveTopUpAmount();
+                      if (amount != null) void handleTopUp(amount);
+                    }}
+                    className="mt-4 flex min-h-12 w-full items-center justify-center rounded-full bg-brand text-sm font-semibold text-white shadow-lg shadow-brand/25 transition hover:bg-brand-dark disabled:cursor-not-allowed disabled:opacity-50"
                   >
                     {topUpLoading !== null ? "Processing…" : payLabel}
                   </button>
-                  {!topUpConfig?.razorpayEnabled && !topUpConfig?.devTopUpEnabled ? (
+                  {!paymentsEnabled ? (
                     <p className="mt-2 text-xs text-muted">Payments are temporarily unavailable.</p>
+                  ) : topUpConfig?.razorpayEnabled ? (
+                    <p className="mt-2 text-xs text-muted">You will pay with UPI (GPay, PhonePe, Paytm, etc.).</p>
                   ) : null}
                 </WalletSection>
 

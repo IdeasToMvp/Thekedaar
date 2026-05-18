@@ -13,7 +13,35 @@ type RazorpayHandlerResponse = {
   razorpay_signature: string;
 };
 
+import { validateTopUpAmountInr } from "./topupValidation";
+
 type RazorpayConstructor = new (options: Record<string, unknown>) => { open: () => void };
+
+/** Razorpay Standard Checkout — UPI only (no card / netbanking / wallet). */
+const RAZORPAY_UPI_ONLY_OPTIONS = {
+  method: {
+    upi: true,
+    card: false,
+    netbanking: false,
+    wallet: false,
+    paylater: false,
+    emi: false,
+  },
+  config: {
+    display: {
+      blocks: {
+        upi_only: {
+          name: "Pay via UPI",
+          instruments: [{ method: "upi" }],
+        },
+      },
+      sequence: ["block.upi_only"],
+      preferences: {
+        show_default_blocks: false,
+      },
+    },
+  },
+} as const;
 
 declare global {
   interface Window {
@@ -39,10 +67,16 @@ export async function openRazorpayTopUp(input: {
   userName?: string | null;
   userPhone?: string;
 }): Promise<{ ok: true; amountInr: number } | { ok: false; error: string }> {
+  const amountCheck = validateTopUpAmountInr(input.amountInr);
+  if (!amountCheck.ok) {
+    return { ok: false, error: amountCheck.error };
+  }
+  const amountInr = amountCheck.amountInr;
+
   const orderResp = await fetch("/api/wallet/topup/create-order", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ amountInr: input.amountInr }),
+    body: JSON.stringify({ amountInr }),
   });
   const orderData = (await orderResp.json()) as CreateOrderResponse;
   if (!orderResp.ok) {
@@ -60,13 +94,14 @@ export async function openRazorpayTopUp(input: {
       amount: orderData.amountInr * 100,
       currency: "INR",
       name: "Thekedaar",
-      description: `Add ₹${input.amountInr} Theke Credits`,
+      description: `Add ₹${amountInr} Theke Credits`,
       order_id: orderData.orderId,
       prefill: {
         name: input.userName || undefined,
         contact: input.userPhone || undefined,
       },
       theme: { color: "#0d9488" },
+      ...RAZORPAY_UPI_ONLY_OPTIONS,
       handler: async (response: RazorpayHandlerResponse) => {
         const verifyResp = await fetch("/api/wallet/topup/verify", {
           method: "POST",
@@ -81,7 +116,7 @@ export async function openRazorpayTopUp(input: {
           });
           return;
         }
-        resolve({ ok: true, amountInr: input.amountInr });
+        resolve({ ok: true, amountInr });
       },
       modal: {
         ondismiss: () => resolve({ ok: false, error: "Payment cancelled" }),
