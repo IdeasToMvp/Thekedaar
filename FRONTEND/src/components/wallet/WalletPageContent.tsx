@@ -14,7 +14,10 @@ import {
 } from "@/lib/credits/thekeCredits";
 import { validateTopUpAmountInr } from "@/lib/credits/topupValidation";
 import type { RecruiterBilling, WalletResponse, WalletTopUpConfig } from "@/lib/credits/types";
+import { useGlobalLoading } from "@/components/ui/LoadingProvider";
 import { WalletPricingTable } from "./WalletPricingTable";
+import { WalletTransactionHistory } from "./WalletTransactionHistory";
+import type { WalletTransaction } from "@/lib/credits/types";
 
 const TOPUP_PRESETS = [49, 100, 200, 500] as const;
 
@@ -50,8 +53,10 @@ function WalletSection({
 
 export function WalletPageContent() {
   const router = useRouter();
+  const { withLoading } = useGlobalLoading();
   const { user, userLoading, cityId, setCityId } = useFeedUser();
   const [billing, setBilling] = useState<RecruiterBilling | null>(null);
+  const [transactions, setTransactions] = useState<WalletTransaction[]>([]);
   const [topUpConfig, setTopUpConfig] = useState<WalletTopUpConfig | null>(null);
   const [loading, setLoading] = useState(true);
   const [topUpLoading, setTopUpLoading] = useState<number | null>(null);
@@ -69,6 +74,7 @@ export function WalletPageContent() {
     }
     setBilling(data.billing);
     setTopUpConfig(data.topUp ?? null);
+    setTransactions(data.transactions ?? []);
   }, []);
 
   useEffect(() => {
@@ -82,7 +88,7 @@ export function WalletPageContent() {
       return;
     }
     let cancelled = false;
-    (async () => {
+    void withLoading(async () => {
       setLoading(true);
       try {
         await loadWallet();
@@ -91,11 +97,11 @@ export function WalletPageContent() {
       } finally {
         if (!cancelled) setLoading(false);
       }
-    })();
+    }, "Loading wallet…");
     return () => {
       cancelled = true;
     };
-  }, [user, userLoading, router, loadWallet]);
+  }, [user, userLoading, router, loadWallet, withLoading]);
 
   function resolveTopUpAmount(): number | null {
     const check = validateTopUpAmountInr(amountInput);
@@ -244,7 +250,14 @@ export function WalletPageContent() {
             </div>
           ) : billing ? (
             <div className="mt-8 flex flex-col gap-6 lg:grid lg:grid-cols-12 lg:items-start">
-              <div className="order-2 lg:order-1 lg:col-span-7">
+              <div className="order-2 space-y-6 lg:order-1 lg:col-span-7">
+                <WalletSection
+                  title="Activity history"
+                  description="Top-ups and where you spent credits."
+                  icon="🧾"
+                >
+                  <WalletTransactionHistory transactions={transactions} />
+                </WalletSection>
                 <WalletSection title="Credit usage" description="All paid actions deduct from your balance." icon="📋">
                   <WalletPricingTable billing={billing} />
                 </WalletSection>

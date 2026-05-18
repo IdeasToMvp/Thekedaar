@@ -8,6 +8,9 @@ export const PRICE_URGENT_BADGE_PAISE = 2_900; // ₹29
 
 export const MIN_TOPUP_PAISE = 4_900; // ₹49
 
+/** Max edits per listing while open. */
+export const MAX_JOB_EDITS = 5;
+
 export function isUrgentUrgency(urgency: string | null | undefined): boolean {
   const t = (urgency || "").toLowerCase();
   return t.includes("high") || t.includes("immediate");

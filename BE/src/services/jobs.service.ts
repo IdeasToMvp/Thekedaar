@@ -4,9 +4,16 @@ import { getUserById } from "./user.service";
 import { normalizePlan, type BillingPlan } from "../utils/planLimits";
 import { isUrgentUrgency } from "../utils/creditPricing";
 import { hasWorkerProfile } from "./user.service";
-import { chargeForNewJob } from "./recruiterBilling.service";
+import { chargeForNewJob, chargeForUrgentUpgrade } from "./recruiterBilling.service";
+import { MAX_JOB_EDITS } from "../utils/creditPricing";
 import { getWalletBalancePaise } from "./wallet.service";
 import { paiseToInr, PRICE_WORKER_UNLOCK_PAISE } from "../utils/creditPricing";
+
+export type ListingStatus = "open" | "closed";
+export type HireSource = "not_hired" | "platform_worker" | "off_platform";
+
+export const JOB_FEED_COLUMNS =
+  "id,recruiter_id,title,city,sector,salary,timing,accommodation,urgency,category,description,min_age,max_age,preferred_gender,required_documents,experience_years_required,created_at,urgent_paid,listing_status,edit_count,edited_at,closed_at,hired_worker_id,hire_source,hired_worker_name";
 
 export type JobFeedRow = {
   id: string;
@@ -27,6 +34,13 @@ export type JobFeedRow = {
   experience_years_required: number | null;
   created_at: string;
   urgent_paid?: boolean | null;
+  listing_status?: ListingStatus | null;
+  edit_count?: number | null;
+  edited_at?: string | null;
+  closed_at?: string | null;
+  hired_worker_id?: string | null;
+  hire_source?: HireSource | null;
+  hired_worker_name?: string | null;
 };
 
 export type JobFeedApiJob = {
@@ -54,6 +68,22 @@ export type JobFeedApiJob = {
   contactWaDigits?: string;
   isOwnListing?: boolean;
   applicationStatus?: "pending" | "approved" | "rejected" | null;
+  listingStatus: ListingStatus;
+  editCount: number;
+  maxEdits: number;
+  editedAt: string | null;
+  closedAt: string | null;
+  canEdit: boolean;
+  urgentPaid: boolean;
+  hiredWorkerId: string | null;
+  hireSource: HireSource | null;
+  hiredWorkerName: string | null;
+};
+
+export type JobHireCandidate = {
+  workerId: string;
+  displayName: string;
+  source: "application" | "job_contact";
 };
 
 function normalizeUrgency(u: string | null | undefined): "low" | "medium" | "high" {
@@ -107,8 +137,25 @@ export function mapJobToFeedApi(
           : {},
     },
     contactWaDigits: waDigitsFromPhone(recruiter.phone),
+    listingStatus: (job.listing_status as ListingStatus) ?? "open",
+    editCount: job.edit_count ?? 0,
+    maxEdits: MAX_JOB_EDITS,
+    editedAt: job.edited_at ?? null,
+    closedAt: job.closed_at ?? null,
+    canEdit:
+      (job.listing_status ?? "open") === "open" && (job.edit_count ?? 0) < MAX_JOB_EDITS,
+    urgentPaid: Boolean(job.urgent_paid),
+    hiredWorkerId: job.hired_worker_id ?? null,
+    hireSource: (job.hire_source as HireSource) ?? null,
+    hiredWorkerName: job.hired_worker_name ?? null,
     ...(viewerId && job.recruiter_id === viewerId ? { isOwnListing: true } : {}),
   };
+}
+
+function assertJobIsOpen(job: JobFeedRow): void {
+  if ((job.listing_status ?? "open") === "closed") {
+    throw new Error("This listing is closed");
+  }
 }
 
 export async function countJobsForRecruiter(recruiterId: string): Promise<number> {
@@ -188,15 +235,10 @@ export async function createJob(input: {
 export async function updateJobForRecruiter(input: {
   jobId: string;
   recruiterId: string;
-  title?: string;
-  city?: string | null;
-  sector?: string | null;
-  fullAddress?: string | null;
   salary?: number | null;
   timing?: string | null;
   accommodation?: boolean | null;
   urgency?: string | null;
-  category?: string | null;
   description?: string | null;
   minAge?: number | null;
   maxAge?: number | null;
@@ -209,29 +251,43 @@ export async function updateJobForRecruiter(input: {
   if (existing.recruiter_id !== input.recruiterId) {
     throw new Error("You can only edit your own listings");
   }
+  assertJobIsOpen(existing);
 
+  const editCount = existing.edit_count ?? 0;
+  if (editCount >= MAX_JOB_EDITS) {
+    throw new Error(`Edit limit reached (${MAX_JOB_EDITS}). Post a new listing to change city, role, or area.`);
+  }
+
+  const alreadyUrgent = Boolean(existing.urgent_paid) || isUrgentUrgency(existing.urgency);
   if (
     input.urgency !== undefined &&
-    isUrgentUrgency(input.urgency) &&
-    !existing.urgent_paid &&
-    !isUrgentUrgency(existing.urgency)
+    alreadyUrgent &&
+    (input.urgency ?? "").trim() !== (existing.urgency ?? "").trim()
   ) {
-    throw new Error(
-      "Urgent badge is paid when you post a new job. Choose Flexible timing or post a new listing with Immediate.",
-    );
+    throw new Error("Urgency cannot be changed on an urgent listing.");
+  }
+
+  const upgradingToUrgent =
+    input.urgency !== undefined &&
+    isUrgentUrgency(input.urgency) &&
+    !alreadyUrgent;
+
+  if (upgradingToUrgent) {
+    await chargeForUrgentUpgrade(input.recruiterId, input.jobId);
   }
 
   const sb = supabaseAdmin();
-  const patch: Record<string, unknown> = {};
-  if (input.title !== undefined) patch.title = input.title.trim();
-  if (input.city !== undefined) patch.city = input.city?.trim() || null;
-  if (input.sector !== undefined) patch.sector = input.sector?.trim() || null;
-  if (input.fullAddress !== undefined) patch.full_address = input.fullAddress?.trim() || null;
+  const patch: Record<string, unknown> = {
+    edit_count: editCount + 1,
+    edited_at: new Date().toISOString(),
+  };
   if (input.salary !== undefined) patch.salary = input.salary;
   if (input.timing !== undefined) patch.timing = input.timing?.trim() || null;
   if (input.accommodation !== undefined) patch.accommodation = input.accommodation;
-  if (input.urgency !== undefined) patch.urgency = input.urgency?.trim() || null;
-  if (input.category !== undefined) patch.category = input.category?.trim() || null;
+  if (input.urgency !== undefined) {
+    patch.urgency = input.urgency?.trim() || null;
+    if (upgradingToUrgent) patch.urgent_paid = true;
+  }
   if (input.description !== undefined) patch.description = input.description?.trim() || null;
   if (input.minAge !== undefined) patch.min_age = input.minAge;
   if (input.maxAge !== undefined) patch.max_age = input.maxAge;
@@ -243,7 +299,134 @@ export async function updateJobForRecruiter(input: {
 
   const { error } = await sb.from("jobs").update(patch).eq("id", input.jobId);
   if (error) throw error;
+  return { id: input.jobId, editCount: editCount + 1, urgentUpgraded: upgradingToUrgent };
+}
+
+export async function closeJobForRecruiter(input: {
+  jobId: string;
+  recruiterId: string;
+  didHire: boolean;
+  hiredWorkerId?: string | null;
+  hireSource?: HireSource;
+  hiredWorkerName?: string | null;
+}) {
+  const existing = await getJobById(input.jobId);
+  if (!existing) throw new Error("Job not found");
+  if (existing.recruiter_id !== input.recruiterId) {
+    throw new Error("You can only close your own listings");
+  }
+  if ((existing.listing_status ?? "open") === "closed") {
+    throw new Error("Listing is already closed");
+  }
+
+  let hireSource: HireSource = "not_hired";
+  let hiredWorkerId: string | null = null;
+  let hiredWorkerName: string | null = null;
+
+  if (input.didHire) {
+    if (input.hireSource === "platform_worker" && input.hiredWorkerId) {
+      const candidates = await listHireCandidatesForJob(input.jobId, input.recruiterId);
+      const match = candidates.find((c) => c.workerId === input.hiredWorkerId);
+      if (!match) {
+        throw new Error("Selected worker is not linked to this listing");
+      }
+      hireSource = "platform_worker";
+      hiredWorkerId = input.hiredWorkerId;
+      hiredWorkerName = match.displayName;
+    } else if (input.hireSource === "off_platform") {
+      const name = input.hiredWorkerName?.trim();
+      if (!name) throw new Error("Enter the worker name");
+      hireSource = "off_platform";
+      hiredWorkerName = name;
+    } else {
+      throw new Error("Select a worker or choose not on platform");
+    }
+  }
+
+  const sb = supabaseAdmin();
+  const { error } = await sb
+    .from("jobs")
+    .update({
+      listing_status: "closed",
+      closed_at: new Date().toISOString(),
+      hire_source: hireSource,
+      hired_worker_id: hiredWorkerId,
+      hired_worker_name: hiredWorkerName,
+    })
+    .eq("id", input.jobId);
+  if (error) throw error;
   return { id: input.jobId };
+}
+
+export async function listHireCandidatesForJob(
+  jobId: string,
+  recruiterId: string,
+): Promise<JobHireCandidate[]> {
+  const job = await getJobById(jobId);
+  if (!job) throw new Error("Job not found");
+  if (job.recruiter_id !== recruiterId) {
+    throw new Error("You can only view candidates for your own listings");
+  }
+
+  const sb = supabaseAdmin();
+  const byId = new Map<string, JobHireCandidate>();
+
+  const { data: apps, error: appErr } = await sb
+    .from("job_applications")
+    .select("worker_id")
+    .eq("job_id", jobId);
+  if (appErr) throw appErr;
+
+  const { data: contacts, error: cErr } = await sb
+    .from("job_feed_contacts")
+    .select("user_id")
+    .eq("job_id", jobId);
+  if (cErr) throw cErr;
+
+  const workerIds = new Set<string>();
+  for (const row of apps ?? []) {
+    workerIds.add((row as { worker_id: string }).worker_id);
+  }
+  for (const row of contacts ?? []) {
+    workerIds.add((row as { user_id: string }).user_id);
+  }
+  if (workerIds.size === 0) return [];
+
+  const { data: users, error: uErr } = await sb
+    .from("users")
+    .select("id,name,phone")
+    .in("id", [...workerIds]);
+  if (uErr) throw uErr;
+
+  const userMap = new Map(
+    (users ?? []).map((u) => {
+      const row = u as { id: string; name: string | null; phone: string };
+      const display =
+        row.name?.trim() ||
+        `Worker ${row.phone.slice(-4)}`;
+      return [row.id, display] as const;
+    }),
+  );
+
+  for (const row of apps ?? []) {
+    const wid = (row as { worker_id: string }).worker_id;
+    const displayName = userMap.get(wid);
+    if (!displayName) continue;
+    byId.set(wid, { workerId: wid, displayName, source: "application" });
+  }
+  for (const row of contacts ?? []) {
+    const wid = (row as { user_id: string }).user_id;
+    const displayName = userMap.get(wid);
+    if (!displayName) continue;
+    const prev = byId.get(wid);
+    if (prev) {
+      byId.set(wid, { ...prev, source: prev.source === "application" ? "application" : "job_contact" });
+    } else {
+      byId.set(wid, { workerId: wid, displayName, source: "job_contact" });
+    }
+  }
+
+  return [...byId.values()].sort((a, b) => a.displayName.localeCompare(b.displayName));
 }
 
 export async function findJobsForWorker(input: {
@@ -304,9 +487,7 @@ export async function listJobsForFeed(input: {
   viewerId?: string;
 }): Promise<{ jobs: JobFeedApiJob[]; rawRows: JobFeedRow[] }> {
   const sb = supabaseAdmin();
-  let q = sb.from("jobs").select(
-    "id,recruiter_id,title,city,sector,salary,timing,accommodation,urgency,category,description,min_age,max_age,preferred_gender,required_documents,experience_years_required,created_at",
-  );
+  let q = sb.from("jobs").select(JOB_FEED_COLUMNS);
 
   if (input.city) q = q.ilike("city", input.city);
   if (input.category) q = q.ilike("category", input.category);
@@ -372,7 +553,7 @@ export async function getJobById(jobId: string): Promise<JobFeedRow | null> {
   const sb = supabaseAdmin();
   const { data, error } = await sb
     .from("jobs")
-    .select("id,recruiter_id,title,city,sector,salary,timing,accommodation,urgency,category,description,min_age,max_age,preferred_gender,required_documents,experience_years_required,created_at")
+    .select(JOB_FEED_COLUMNS)
     .eq("id", jobId)
     .maybeSingle();
   if (error) throw error;
@@ -408,6 +589,10 @@ export async function recordFeedJobContact(input: {
 }): Promise<{ recorded: boolean; used: number; max: number }> {
   const user = await getUserById(input.userId);
   if (!user) throw new Error("User not found");
+
+  const job = await getJobById(input.jobId);
+  if (!job) throw new Error("Job not found");
+  assertJobIsOpen(job);
 
   const already = await hasUserContactedJob(input.userId, input.jobId);
   const used = await countUserFeedContacts(input.userId);
@@ -469,7 +654,7 @@ export async function listUserFeedContactActivity(userId: string): Promise<FeedC
   const jobIds = [...new Set(rows.map((r) => r.job_id))];
   const { data: jobs, error: jErr } = await sb
     .from("jobs")
-    .select("id,recruiter_id,title,city,sector,salary,timing,accommodation,urgency,category,description,min_age,max_age,preferred_gender,required_documents,experience_years_required,created_at")
+    .select(JOB_FEED_COLUMNS)
     .in("id", jobIds);
   if (jErr) throw jErr;
   const jobRows = (jobs ?? []) as JobFeedRow[];
@@ -504,7 +689,7 @@ export async function listRecruiterOwnListings(userId: string, limit = 20): Prom
   const sb = supabaseAdmin();
   const { data, error } = await sb
     .from("jobs")
-    .select("id,recruiter_id,title,city,sector,salary,timing,accommodation,urgency,category,description,min_age,max_age,preferred_gender,required_documents,experience_years_required,created_at")
+    .select(JOB_FEED_COLUMNS)
     .eq("recruiter_id", userId)
     .order("created_at", { ascending: false })
     .limit(limit);

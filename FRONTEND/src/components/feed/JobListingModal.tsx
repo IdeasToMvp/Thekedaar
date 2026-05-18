@@ -2,7 +2,14 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { CreditsInsufficientAlert } from "@/components/credits/CreditsInsufficientAlert";
-import { estimateNewJobCostInr } from "@/lib/credits/pricing";
+import { PaidFeatureNote } from "@/components/credits/PaidFeatureNote";
+import { PAID_FEATURES } from "@/lib/credits/paidFeatures";
+import {
+  estimateNewJobCostInr,
+  estimateUrgentUpgradeCostInr,
+  isUrgentUrgency,
+  MAX_JOB_EDITS,
+} from "@/lib/credits/pricing";
 import { isInsufficientCredits, type RecruiterBilling, type WalletResponse } from "@/lib/credits/types";
 import type { FeedJob } from "@/lib/jobs/types";
 import { ACTIVE_MARKET, cityToApiParam, getLaunchRole } from "@/lib/launch";
@@ -103,22 +110,32 @@ export function JobListingModal({ open, cityId, job, onClose, onSuccess }: Props
     setForm(job ? formFromJob(job, cityId) : emptyForm(cityId));
     setError(null);
     setSubmitting(false);
-    if (!job) {
+    if (open) {
       void fetch("/api/wallet")
         .then((r) => r.json())
         .then((data: WalletResponse) => {
           if (data.billing) setBilling(data.billing);
         })
         .catch(() => setBilling(null));
-    } else {
-      setBilling(null);
     }
   }, [open, job, cityId]);
+
+  const isClosed = isEdit && job?.listingStatus === "closed";
+  const canEdit = !isEdit || (job?.canEdit ?? false);
+  const editsUsed = job?.editCount ?? 0;
+  const maxEdits = job?.maxEdits ?? MAX_JOB_EDITS;
+  const urgencyLocked =
+    isEdit && Boolean(job?.urgentPaid || isUrgentUrgency(urgencyFromJob(job!)));
 
   const postCost = useMemo(() => {
     if (isEdit) return null;
     return estimateNewJobCostInr(form.urgency);
   }, [isEdit, form.urgency]);
+
+  const urgentUpgradeCost = useMemo(() => {
+    if (!isEdit || urgencyLocked) return 0;
+    return estimateUrgentUpgradeCostInr(false, form.urgency);
+  }, [isEdit, urgencyLocked, form.urgency]);
 
   useEffect(() => {
     if (!open) return;
@@ -135,8 +152,17 @@ export function JobListingModal({ open, cityId, job, onClose, onSuccess }: Props
     e.preventDefault();
     setError(null);
 
+    if (isEdit && isClosed) {
+      setError("Closed listings cannot be edited. Post a new job instead.");
+      return;
+    }
+    if (isEdit && !canEdit) {
+      setError(`Edit limit reached (${maxEdits}). Post a new listing.`);
+      return;
+    }
+
     const role = getLaunchRole(form.roleId);
-    if (!role) {
+    if (!isEdit && !role) {
       setError("Please choose a role.");
       return;
     }
@@ -148,7 +174,7 @@ export function JobListingModal({ open, cityId, job, onClose, onSuccess }: Props
     }
 
     const sector = form.sector.trim();
-    if (!sector) {
+    if (!isEdit && !sector) {
       setError("Select area / sector in Gurugram.");
       return;
     }
@@ -181,22 +207,35 @@ export function JobListingModal({ open, cityId, job, onClose, onSuccess }: Props
       return;
     }
 
-    const payload = {
-      title: role.label,
-      category: role.apiCategory,
-      city: cityToApiParam(form.cityId) ?? ACTIVE_MARKET.displayName,
-      experienceYearsRequired,
-      sector,
-      salary: Math.round(salaryNum),
-      timing,
-      accommodation: form.accommodation === "yes",
-      minAge,
-      maxAge,
-      preferredGender: form.preferredGender,
-      requiredDocuments: form.aadhaarRequired ? (["aadhaar"] as const) : [],
-      urgency: form.urgency,
-      description: form.description.trim() || null,
-    };
+    const payload = isEdit
+      ? {
+          experienceYearsRequired,
+          salary: Math.round(salaryNum),
+          timing,
+          accommodation: form.accommodation === "yes",
+          minAge,
+          maxAge,
+          preferredGender: form.preferredGender,
+          requiredDocuments: form.aadhaarRequired ? (["aadhaar"] as const) : [],
+          ...(urgencyLocked ? {} : { urgency: form.urgency }),
+          description: form.description.trim() || null,
+        }
+      : {
+          title: role!.label,
+          category: role!.apiCategory,
+          city: cityToApiParam(form.cityId) ?? ACTIVE_MARKET.displayName,
+          experienceYearsRequired,
+          sector,
+          salary: Math.round(salaryNum),
+          timing,
+          accommodation: form.accommodation === "yes",
+          minAge,
+          maxAge,
+          preferredGender: form.preferredGender,
+          requiredDocuments: form.aadhaarRequired ? (["aadhaar"] as const) : [],
+          urgency: form.urgency,
+          description: form.description.trim() || null,
+        };
 
     setSubmitting(true);
     try {
@@ -238,11 +277,41 @@ export function JobListingModal({ open, cityId, job, onClose, onSuccess }: Props
             {isEdit ? "Edit listing" : "Post a job"}
           </h2>
           <p className="mt-0.5 text-sm text-muted">
-            {isEdit ? "Update details shown on the job feed" : `Listing in ${ACTIVE_MARKET.displayName}`}
+            {isClosed
+              ? "This listing is closed and cannot be edited."
+              : isEdit
+                ? `Edits used: ${editsUsed}/${maxEdits}. City, role, and area are locked.`
+                : `Listing in ${ACTIVE_MARKET.displayName}`}
           </p>
         </div>
 
         <div className="min-h-0 flex-1 overflow-y-auto px-5 py-4">
+          {isClosed ? (
+            <p className="mb-4 rounded-xl border border-amber-200 bg-amber-50 px-3 py-3 text-sm text-amber-950">
+              Post a new job to list again.
+            </p>
+          ) : null}
+
+          {isEdit && job && !isClosed ? (
+            <div className="mb-4 rounded-xl border border-border bg-slate-50/90 px-3 py-3 text-sm">
+              <p className="text-[10px] font-semibold uppercase tracking-wide text-muted">Locked fields</p>
+              <dl className="mt-2 space-y-2">
+                <div>
+                  <dt className="text-xs text-muted">City</dt>
+                  <dd className="font-medium">{job.city || ACTIVE_MARKET.displayName}</dd>
+                </div>
+                <div>
+                  <dt className="text-xs text-muted">Role</dt>
+                  <dd className="font-medium">{job.title}</dd>
+                </div>
+                <div>
+                  <dt className="text-xs text-muted">Area</dt>
+                  <dd className="font-medium">{job.sector || job.publicLocation || "—"}</dd>
+                </div>
+              </dl>
+            </div>
+          ) : !isEdit ? (
+            <>
           <label className="block text-sm font-medium text-foreground">
             City
             <select
@@ -282,7 +351,11 @@ export function JobListingModal({ open, cityId, job, onClose, onSuccess }: Props
             required
             hint={`City is ${cityToApiParam(form.cityId) ?? ACTIVE_MARKET.displayName}. Only area is shown on the public feed.`}
           />
+            </>
+          ) : null}
 
+          {!isClosed ? (
+          <>
           <label className="mt-4 block text-sm font-medium text-foreground">
             Experience required (years)
             <input
@@ -395,34 +468,50 @@ export function JobListingModal({ open, cityId, job, onClose, onSuccess }: Props
             Urgency
             <select
               value={form.urgency}
+              disabled={urgencyLocked}
               onChange={(e) => setForm((f) => ({ ...f, urgency: e.target.value }))}
-              className="mt-1.5 w-full rounded-xl border border-border bg-background px-3 py-2.5 text-sm"
+              className="mt-1.5 w-full rounded-xl border border-border bg-background px-3 py-2.5 text-sm disabled:cursor-not-allowed disabled:bg-slate-100"
             >
               {URGENCY_OPTIONS.map((o) => (
                 <option key={o.value} value={o.value}>
                   {o.label}
-                  {o.value === "Immediate" ? " (+ urgent badge)" : ""}
+                  {o.value === "Immediate" && !urgencyLocked ? ` (+₹${PAID_FEATURES.urgentBadge.amountInr})` : ""}
                 </option>
               ))}
             </select>
+            {urgencyLocked ? (
+              <p className="mt-1 text-xs text-muted">Urgent badge is locked on this listing.</p>
+            ) : null}
             {!isEdit && form.urgency === "Immediate" ? (
-              <p className="mt-1 text-xs text-muted">Immediate posts include a paid urgent badge on the feed.</p>
+              <PaidFeatureNote className="mt-1" label={PAID_FEATURES.urgentBadge.label} amountInr={PAID_FEATURES.urgentBadge.amountInr} />
             ) : null}
           </label>
 
           {!isEdit && postCost ? (
-            <div className="mt-4 rounded-xl border border-brand/20 bg-brand/5 px-3 py-2 text-sm text-foreground">
-              <p className="font-medium">Cost from Theke Credits</p>
-              <p className="mt-0.5 text-xs text-muted">
-                {postCost.listing > 0 ? `Listing ₹${postCost.listing}` : null}
-                {postCost.listing > 0 && postCost.urgent > 0 ? " + " : null}
-                {postCost.urgent > 0 ? `Urgent ₹${postCost.urgent}` : null}
-                {" "}= ₹{postCost.total} total
-              </p>
+            <div className="mt-4 space-y-2 rounded-xl border border-brand/20 bg-brand/5 px-3 py-2 text-sm">
+              <p className="font-medium">Paid with Theke Credits</p>
+              <PaidFeatureNote label={PAID_FEATURES.postListing.label} amountInr={postCost.listing} />
+              {postCost.urgent > 0 ? (
+                <PaidFeatureNote label={PAID_FEATURES.urgentBadge.label} amountInr={postCost.urgent} />
+              ) : null}
+              <p className="text-xs font-semibold text-brand-dark">Total: ₹{postCost.total}</p>
+              {billing ? (
+                <p className="text-xs text-muted">
+                  Balance: ₹{billing.balanceInr}
+                  {postCost.total > billing.balanceInr ? " — add credits to continue" : ""}
+                </p>
+              ) : null}
+            </div>
+          ) : null}
+
+          {isEdit && urgentUpgradeCost > 0 ? (
+            <div className="mt-4 rounded-xl border border-brand/20 bg-brand/5 px-3 py-2 text-sm">
+              <p className="font-medium">Due on save</p>
+              <PaidFeatureNote label={PAID_FEATURES.urgentBadge.label} amountInr={urgentUpgradeCost} />
               {billing ? (
                 <p className="mt-1 text-xs text-muted">
                   Balance: ₹{billing.balanceInr}
-                  {postCost.total > billing.balanceInr ? " — add credits to continue" : ""}
+                  {urgentUpgradeCost > billing.balanceInr ? " — add credits" : ""}
                 </p>
               ) : null}
             </div>
@@ -448,6 +537,8 @@ export function JobListingModal({ open, cityId, job, onClose, onSuccess }: Props
               </p>
             )
           ) : null}
+          </>
+          ) : null}
         </div>
 
         <div className="flex shrink-0 gap-3 border-t border-border px-5 py-4">
@@ -461,13 +552,15 @@ export function JobListingModal({ open, cityId, job, onClose, onSuccess }: Props
           </button>
           <button
             type="submit"
-            disabled={submitting}
+            disabled={submitting || isClosed || (isEdit && !canEdit)}
             className="min-h-11 flex-1 rounded-full bg-brand-dark text-sm font-semibold text-white disabled:opacity-50"
           >
             {submitting
               ? "Saving…"
               : isEdit
-                ? "Save changes"
+                ? urgentUpgradeCost > 0
+                  ? `Save · ₹${urgentUpgradeCost}`
+                  : "Save changes"
                 : postCost
                   ? `Post · ₹${postCost.total}`
                   : "Post job"}

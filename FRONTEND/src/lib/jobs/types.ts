@@ -2,6 +2,15 @@ export type JobUrgency = "low" | "medium" | "high";
 
 export type ApplicationStatus = "pending" | "approved" | "rejected";
 
+export type ListingStatus = "open" | "closed";
+export type HireSource = "not_hired" | "platform_worker" | "off_platform";
+
+export type JobHireCandidate = {
+  workerId: string;
+  displayName: string;
+  source: "application" | "job_contact";
+};
+
 export type FeedJob = {
   id: string;
   title: string;
@@ -28,6 +37,16 @@ export type FeedJob = {
   applicationStatus?: ApplicationStatus | null;
   /** Set when the signed-in user posted this job */
   isOwnListing?: boolean;
+  listingStatus?: ListingStatus;
+  editCount?: number;
+  maxEdits?: number;
+  editedAt?: string | null;
+  closedAt?: string | null;
+  canEdit?: boolean;
+  urgentPaid?: boolean;
+  hiredWorkerId?: string | null;
+  hireSource?: HireSource | null;
+  hiredWorkerName?: string | null;
 };
 
 export type FeedLimits = {

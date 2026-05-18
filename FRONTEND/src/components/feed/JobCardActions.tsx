@@ -17,6 +17,7 @@ type Props = {
 };
 
 export function JobCardActions({ job, user, onApplicationUpdated, onContactRecorded }: Props) {
+  const closed = job.listingStatus === "closed";
   const action = primaryJobAction(user);
   const apply = useJobApply(job, onApplicationUpdated);
   const hire = useJobContact(job, action === "hire" ? "hire" : null, onContactRecorded ?? (() => {}));
@@ -33,6 +34,10 @@ export function JobCardActions({ job, user, onApplicationUpdated, onContactRecor
     apply.status === "rejected"
       ? "min-h-9 flex-1 rounded-full border border-red-200 bg-red-50 text-sm font-semibold text-red-800 disabled:opacity-70"
       : "min-h-9 flex-1 rounded-full bg-brand-dark text-sm font-semibold text-white transition hover:opacity-95 disabled:opacity-50";
+
+  if (closed) {
+    return <p className="mt-auto pt-3 text-xs font-medium text-muted">This listing is closed</p>;
+  }
 
   if (!action) {
     return (

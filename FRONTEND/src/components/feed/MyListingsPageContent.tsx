@@ -8,35 +8,41 @@ import { useFeedUser } from "./FeedUserProvider";
 import { AppNavbar } from "./AppNavbar";
 import { MyListingsSection } from "./MyListingsSection";
 import { JobListingModal } from "./JobListingModal";
+import { CloseListingModal } from "./CloseListingModal";
 import { PostJobFab } from "./PostJobFab";
+import { useGlobalLoading } from "@/components/ui/LoadingProvider";
 
 export function MyListingsPageContent() {
+  const { withLoading } = useGlobalLoading();
   const { user, userLoading, cityId, setCityId } = useFeedUser();
   const [listings, setListings] = useState<FeedJob[]>([]);
   const [listingsLoading, setListingsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [listingModalOpen, setListingModalOpen] = useState(false);
   const [editingJob, setEditingJob] = useState<FeedJob | null>(null);
+  const [closingJob, setClosingJob] = useState<FeedJob | null>(null);
 
   const loadListings = useCallback(async () => {
-    setListingsLoading(true);
-    setError(null);
-    try {
-      const actRes = await fetch("/api/auth/activity");
-      const actData = (await actRes.json()) as ActivityResponse;
-      if (!actRes.ok) {
-        setError(actData.error || "Could not load your listings");
+    await withLoading(async () => {
+      setListingsLoading(true);
+      setError(null);
+      try {
+        const actRes = await fetch("/api/auth/activity");
+        const actData = (await actRes.json()) as ActivityResponse;
+        if (!actRes.ok) {
+          setError(actData.error || "Could not load your listings");
+          setListings([]);
+          return;
+        }
+        setListings(actData.myListings ?? []);
+      } catch {
+        setError("Could not load your listings");
         setListings([]);
-        return;
+      } finally {
+        setListingsLoading(false);
       }
-      setListings(actData.myListings ?? []);
-    } catch {
-      setError("Could not load your listings");
-      setListings([]);
-    } finally {
-      setListingsLoading(false);
-    }
-  }, []);
+    }, "Loading listings…");
+  }, [withLoading]);
 
   useEffect(() => {
     if (!user || !isEmployerAccount(user)) {
@@ -71,6 +77,7 @@ export function MyListingsPageContent() {
                   setEditingJob(job);
                   setListingModalOpen(true);
                 }}
+                onCloseJob={(job) => setClosingJob(job)}
               />
             </>
           )}
@@ -95,6 +102,14 @@ export function MyListingsPageContent() {
             }}
             onSuccess={() => loadListings()}
           />
+          {closingJob ? (
+            <CloseListingModal
+              open={Boolean(closingJob)}
+              job={closingJob}
+              onClose={() => setClosingJob(null)}
+              onSuccess={() => loadListings()}
+            />
+          ) : null}
         </>
       ) : null}
     </div>

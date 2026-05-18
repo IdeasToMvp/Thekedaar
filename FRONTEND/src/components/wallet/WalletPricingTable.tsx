@@ -22,7 +22,7 @@ export function WalletPricingTable({ billing }: Props) {
     {
       action: "Urgent badge (Immediate)",
       cost: `₹${pricing.urgentInr}`,
-      note: "Added when you choose Immediate urgency on a new post",
+      note: "On new post, or when you upgrade an open listing to Immediate in edit",
     },
     {
       action: "Browse Find Workers",

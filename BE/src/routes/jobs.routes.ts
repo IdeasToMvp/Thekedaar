@@ -9,8 +9,10 @@ import { submitJobApplication } from "../services/applications.service";
 import { isWalletError } from "../errors/walletErrors";
 import {
   buildFeedLimits,
+  closeJobForRecruiter,
   createJob,
   getJobById,
+  listHireCandidatesForJob,
   recordFeedJobContact,
   updateJobForRecruiter,
 } from "../services/jobs.service";
@@ -86,10 +88,27 @@ router.post("/", requireSession, async (req, res) => {
   }
 });
 
-const UpdateJobBodySchema = CreateJobBodySchema.partial().refine(
-  (data) => Object.keys(data).length > 0,
-  { message: "At least one field is required" },
-);
+const UpdateJobBodySchema = z
+  .object({
+    salary: z.number().int().positive().max(10_000_000).optional().nullable(),
+    timing: z.string().max(120).optional().nullable(),
+    accommodation: z.boolean().optional().nullable(),
+    urgency: z.string().max(80).optional().nullable(),
+    description: z.string().max(2000).optional().nullable(),
+    minAge: z.number().int().min(16).max(80).optional().nullable(),
+    maxAge: z.number().int().min(16).max(80).optional().nullable(),
+    preferredGender: z.enum(["any", "male", "female"]).optional().nullable(),
+    requiredDocuments: z.array(z.enum(["aadhaar"])).max(4).optional().nullable(),
+    experienceYearsRequired: z.number().int().min(0).max(80).optional().nullable(),
+  })
+  .refine((data) => Object.keys(data).length > 0, { message: "At least one field is required" });
+
+const CloseJobBodySchema = z.object({
+  didHire: z.boolean(),
+  hiredWorkerId: z.string().uuid().optional().nullable(),
+  hireSource: z.enum(["platform_worker", "off_platform", "not_hired"]).optional(),
+  hiredWorkerName: z.string().min(1).max(120).optional().nullable(),
+});
 
 router.patch("/:jobId", requireSession, async (req, res) => {
   const session = (req as RequestWithSession).session;
@@ -104,17 +123,13 @@ router.patch("/:jobId", requireSession, async (req, res) => {
 
   try {
     const body = parsed.data;
-    await updateJobForRecruiter({
+    const result = await updateJobForRecruiter({
       jobId,
       recruiterId: session.sub,
-      title: body.title,
-      city: body.city,
-      sector: body.sector,
       salary: body.salary,
       timing: body.timing,
       accommodation: body.accommodation,
       urgency: body.urgency,
-      category: body.category,
       description: body.description,
       minAge: body.minAge,
       maxAge: body.maxAge,
@@ -122,10 +137,74 @@ router.patch("/:jobId", requireSession, async (req, res) => {
       requiredDocuments: body.requiredDocuments,
       experienceYearsRequired: body.experienceYearsRequired,
     });
+    return res.status(200).json({ ok: true, jobId, ...result });
+  } catch (e: unknown) {
+    if (isWalletError(e)) {
+      return res.status(e.statusCode).json({
+        error: e.message,
+        code: e.code,
+        ...e.details,
+      });
+    }
+    const msg = e instanceof Error ? e.message : "Could not update job";
+    const status =
+      msg.includes("only edit your own") ? 403 :
+      msg.includes("not found") ? 404 :
+      msg.includes("closed") || msg.includes("Edit limit") || msg.includes("Urgency cannot") ? 400 : 400;
+    return res.status(status).json({ error: msg });
+  }
+});
+
+router.get("/:jobId/hire-candidates", requireSession, async (req, res) => {
+  const session = (req as RequestWithSession).session;
+  const jobId = typeof req.params.jobId === "string" ? req.params.jobId : req.params.jobId?.[0];
+  if (!jobId || !z.string().uuid().safeParse(jobId).success) {
+    return res.status(400).json({ error: "Invalid job id" });
+  }
+  try {
+    const candidates = await listHireCandidatesForJob(jobId, session.sub);
+    return res.status(200).json({ ok: true, candidates });
+  } catch (e: unknown) {
+    const msg = e instanceof Error ? e.message : "Could not load candidates";
+    const status = msg.includes("your own") ? 403 : msg.includes("not found") ? 404 : 400;
+    return res.status(status).json({ error: msg });
+  }
+});
+
+router.post("/:jobId/close", requireSession, async (req, res) => {
+  const session = (req as RequestWithSession).session;
+  const jobId = typeof req.params.jobId === "string" ? req.params.jobId : req.params.jobId?.[0];
+  if (!jobId || !z.string().uuid().safeParse(jobId).success) {
+    return res.status(400).json({ error: "Invalid job id" });
+  }
+  const parsed = CloseJobBodySchema.safeParse(req.body);
+  if (!parsed.success) {
+    return res.status(400).json({ error: "Invalid request" });
+  }
+  try {
+    const body = parsed.data;
+    const hireSource =
+      body.didHire ?
+        body.hireSource === "off_platform" ? "off_platform" as const :
+        body.hireSource === "platform_worker" ? "platform_worker" as const :
+        undefined :
+      "not_hired" as const;
+
+    await closeJobForRecruiter({
+      jobId,
+      recruiterId: session.sub,
+      didHire: body.didHire,
+      hiredWorkerId: body.hiredWorkerId,
+      hireSource,
+      hiredWorkerName: body.hiredWorkerName,
+    });
     return res.status(200).json({ ok: true, jobId });
   } catch (e: unknown) {
-    const msg = e instanceof Error ? e.message : "Could not update job";
-    const status = msg.includes("only edit your own") ? 403 : msg.includes("not found") ? 404 : 400;
+    const msg = e instanceof Error ? e.message : "Could not close listing";
+    const status =
+      msg.includes("your own") ? 403 :
+      msg.includes("already closed") ? 409 :
+      msg.includes("not found") ? 404 : 400;
     return res.status(status).json({ error: msg });
   }
 });
@@ -159,6 +238,7 @@ router.post("/:jobId/apply", requireSession, async (req, res) => {
     const status =
       msg.includes("worker profile") ? 403 :
       msg.includes("cannot apply again") ? 409 :
+      msg.includes("closed") ? 400 :
       msg.includes("own listing") ? 400 :
       msg.includes("not found") ? 404 : 400;
     return res.status(status).json({ error: msg });
@@ -180,6 +260,9 @@ router.post("/:jobId/contact", requireSession, async (req, res) => {
     const job = await getJobById(jobId);
     if (!job) {
       return res.status(404).json({ error: "Job not found" });
+    }
+    if ((job.listing_status ?? "open") === "closed") {
+      return res.status(400).json({ error: "This listing is closed" });
     }
     if (parsed.data.action === "apply") {
       const { application, created } = await submitJobApplication({

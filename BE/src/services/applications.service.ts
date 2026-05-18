@@ -324,6 +324,9 @@ export async function submitJobApplication(input: {
 }): Promise<{ application: JobApplicationApi; created: boolean }> {
   const job = await getJobById(input.jobId);
   if (!job) throw new Error("Job not found");
+  if ((job.listing_status ?? "open") === "closed") {
+    throw new Error("This listing is closed and no longer accepting applications");
+  }
   if (job.recruiter_id === input.workerId) {
     throw new Error("You cannot apply to your own listing");
   }

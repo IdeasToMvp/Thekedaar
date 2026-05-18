@@ -6,6 +6,7 @@ import type { MeUser } from "@/lib/auth/types";
 import { formatRelativeTime, formatSalary } from "@/lib/formatRelativeTime";
 import { categoryIcon } from "@/lib/jobs/feedFilters";
 import { workerOrJobLocation } from "@/lib/location/publicLocation";
+import { ListingStatusBadges } from "@/components/jobs/ListingStatusBadges";
 import { JobCardActions } from "./JobCardActions";
 
 function categoryGradient(category: string): string {
@@ -23,6 +24,7 @@ type Props = {
 
 export function FeedJobCard({ job, user, onApplicationUpdated }: Props) {
   const own = Boolean(job.isOwnListing);
+  const closed = job.listingStatus === "closed";
   const location = workerOrJobLocation({
     publicLocation: job.publicLocation,
     city: job.city,
@@ -32,7 +34,11 @@ export function FeedJobCard({ job, user, onApplicationUpdated }: Props) {
   return (
     <article
       className={`flex h-full w-full flex-col overflow-hidden rounded-2xl border bg-surface shadow-sm shadow-slate-900/5 ${
-        own ? "border-brand/40 ring-1 ring-brand/20" : "border-border"
+        closed
+          ? "border-slate-300 opacity-75 grayscale-[0.35]"
+          : own
+            ? "border-brand/40 ring-1 ring-brand/20"
+            : "border-border"
       }`}
     >
       <div className={`relative px-3 pb-2.5 pt-3 sm:px-4 bg-gradient-to-br ${categoryGradient(job.category)}`}>
@@ -45,7 +51,8 @@ export function FeedJobCard({ job, user, onApplicationUpdated }: Props) {
           </span>
           <div className="min-w-0 flex-1">
             <div className="flex flex-wrap items-center gap-1">
-              {job.urgency === "high" && !own ? (
+              <ListingStatusBadges job={job} />
+              {job.urgency === "high" && !own && !closed ? (
                 <span className="rounded-full bg-amber-500 px-1.5 py-0.5 text-[9px] font-bold uppercase text-white">
                   Urgent
                 </span>
@@ -85,6 +92,8 @@ export function FeedJobCard({ job, user, onApplicationUpdated }: Props) {
               Manage listing
             </Link>
           </div>
+        ) : closed ? (
+          <p className="mt-auto pt-3 text-xs font-medium text-muted">This job is closed</p>
         ) : (
           <JobCardActions job={job} user={user} onApplicationUpdated={onApplicationUpdated} />
         )}

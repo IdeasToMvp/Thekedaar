@@ -59,6 +59,16 @@ export async function chargeForNewJob(
   return { urgentPaid: urgent };
 }
 
+/** Debit urgent badge when upgrading an existing listing to Immediate. */
+export async function chargeForUrgentUpgrade(recruiterId: string, jobId: string): Promise<void> {
+  await debitCredits({
+    userId: recruiterId,
+    amountPaise: PRICE_URGENT_BADGE_PAISE,
+    type: "debit_urgent",
+    metadata: { jobId, source: "edit_upgrade" },
+  });
+}
+
 /** Debit credits to unlock a worker contact. */
 export async function chargeWorkerUnlock(employerId: string, workerId: string): Promise<void> {
   await debitCredits({

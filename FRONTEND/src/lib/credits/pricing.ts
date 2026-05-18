@@ -5,6 +5,8 @@ export const PRICE_LISTING_INR = 49;
 export const PRICE_UNLOCK_INR = 20;
 export const PRICE_URGENT_INR = 29;
 
+export const MAX_JOB_EDITS = 5;
+
 export function isUrgentUrgency(urgency: string): boolean {
   const t = urgency.toLowerCase();
   return t.includes("immediate") || t.includes("high");
@@ -14,4 +16,12 @@ export function estimateNewJobCostInr(urgency: string): { listing: number; urgen
   const listing = PRICE_LISTING_INR;
   const urgent = isUrgentUrgency(urgency) ? PRICE_URGENT_INR : 0;
   return { listing, urgent, total: listing + urgent };
+}
+
+export function estimateUrgentUpgradeCostInr(
+  currentUrgent: boolean,
+  newUrgency: string,
+): number {
+  if (currentUrgent) return 0;
+  return isUrgentUrgency(newUrgency) ? PRICE_URGENT_INR : 0;
 }
