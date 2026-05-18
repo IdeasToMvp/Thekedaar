@@ -1,3 +1,4 @@
+import { assertUserCanMutate, isPubliclyVisibleAccount } from "./accountLifecycle.service";
 import { supabaseAdmin } from "./supabase.service";
 import { sendHireContactDetailsWhatsApp } from "../utils/contactDetails";
 import { getUserById } from "./user.service";
@@ -99,7 +100,10 @@ export function mapWorkerToFeedApi(row: WorkerFeedRowRaw, viewerId?: string): Wo
 
 export async function countWorkersForFeed(input: { city?: string; role?: string }): Promise<number> {
   const sb = supabaseAdmin();
-  let q = sb.from("worker_profiles").select("user_id, users!inner(id)", { count: "exact", head: true });
+  let q = sb
+    .from("worker_profiles")
+    .select("user_id, users!inner(id)", { count: "exact", head: true })
+    .eq("users.account_status", "active");
   if (input.city) q = q.ilike("users.city", input.city);
   if (input.role) q = q.ilike("role", input.role);
   const { count, error } = await q;
@@ -116,9 +120,12 @@ export async function listWorkersForFeed(input: {
   viewerId?: string;
 }): Promise<{ workers: WorkerFeedApiWorker[] }> {
   const sb = supabaseAdmin();
-  let q = sb.from("worker_profiles").select(
-    "user_id, role, skills, age, gender, has_aadhaar, experience_years, expected_salary, availability, users!inner(id, name, city, sector, phone, created_at)",
-  );
+  let q = sb
+    .from("worker_profiles")
+    .select(
+      "user_id, role, skills, age, gender, has_aadhaar, experience_years, expected_salary, availability, users!inner(id, name, city, sector, phone, created_at, account_status)",
+    )
+    .eq("users.account_status", "active");
 
   if (input.city) q = q.ilike("users.city", input.city);
   if (input.role) q = q.ilike("role", input.role);
@@ -201,8 +208,13 @@ export async function recordEmployerWorkerHire(input: {
     throw new Error("You cannot hire your own profile");
   }
 
+  await assertUserCanMutate(input.employerId);
   const row = await fetchWorkerFeedRow(input.workerId);
   if (!row) throw new Error("Worker not found");
+  const workerUser = row.users as { account_status?: string | null } | undefined;
+  if (workerUser?.account_status && workerUser.account_status !== "active") {
+    throw new Error("This worker profile is not available");
+  }
 
   const employer = await getUserById(input.employerId);
   if (!employer) throw new Error("User not found");

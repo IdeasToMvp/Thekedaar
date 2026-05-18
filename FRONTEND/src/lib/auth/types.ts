@@ -1,3 +1,5 @@
+import type { AccountStatus } from "./accountStatus";
+
 export type AppMode = "worker" | "recruiter";
 
 export type MeUser = {
@@ -10,6 +12,9 @@ export type MeUser = {
   current_mode: AppMode;
   can_seek: boolean;
   can_hire: boolean;
+  account_status?: AccountStatus;
+  paused_at?: string | null;
+  deleted_at?: string | null;
 };
 
 export type WorkerProfile = {

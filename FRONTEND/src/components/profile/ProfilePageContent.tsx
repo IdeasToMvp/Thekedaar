@@ -18,6 +18,7 @@ import { useFeedUser } from "@/components/feed/FeedUserProvider";
 import { AppNavbar } from "@/components/feed/AppNavbar";
 import { LocalitySelect } from "@/components/feed/LocalitySelect";
 import { SkillMultiSelect } from "./SkillMultiSelect";
+import { ProfileAccountSettings } from "./ProfileAccountSettings";
 
 const inputClass =
   "mt-1.5 w-full rounded-xl border border-border bg-background px-3 py-2.5 text-sm text-foreground transition focus:border-brand focus:outline-none focus:ring-2 focus:ring-brand/15";
@@ -543,6 +544,10 @@ export function ProfilePageContent() {
                       </ProfileField>
                     </div>
                   </ProfileSection>
+                ) : null}
+
+                {user ? (
+                  <ProfileAccountSettings user={user} onStatusChange={() => refreshUser()} />
                 ) : null}
 
                 {error ? (

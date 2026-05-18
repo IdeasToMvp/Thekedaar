@@ -31,7 +31,12 @@ export function FeedUserProvider({ children }: { children: ReactNode }) {
   const refreshUser = useCallback(async () => {
     const r = await fetch("/api/auth/me");
     const data = (await r.json()) as MeResponse & { code?: string };
-    if (r.status === 401 || data.code === "SESSION_STALE") {
+    if (
+      r.status === 401 ||
+      data.code === "SESSION_STALE" ||
+      data.code === "ACCOUNT_DELETED" ||
+      data.code === "ACCOUNT_BANNED"
+    ) {
       await fetch("/api/auth/logout", { method: "POST" }).catch(() => {});
       setUser(null);
       return;

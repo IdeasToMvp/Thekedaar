@@ -2,6 +2,7 @@ import crypto from "crypto";
 import jwt from "jsonwebtoken";
 import type { JwtPayload } from "jsonwebtoken";
 import { supabaseAdmin } from "./supabase.service";
+import { assertUserCanAuthenticate } from "./accountLifecycle.service";
 import { getUserCapabilities, getUserWithProfiles } from "./user.service";
 
 function sha256Hex(input: string): string {
@@ -74,6 +75,7 @@ export async function exchangeMagicLinkToken(rawToken: string): Promise<SessionC
     .eq("id", data.id);
   if (updErr) throw updErr;
 
+  await assertUserCanAuthenticate(data.user_id);
   return sessionClaimsForUserId(data.user_id);
 }
 

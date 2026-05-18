@@ -58,6 +58,10 @@ export function LoginForm({ returnTo, intent, jobId }: Props) {
         setView("not_registered");
         return;
       }
+      if (data?.sent === false && data?.reason === "account_restricted") {
+        setError(typeof data?.message === "string" ? data.message : "This account cannot sign in.");
+        return;
+      }
       if (data?.sent !== true) {
         setError("We could not send the link. Check your number or try again in a few minutes.");
         return;

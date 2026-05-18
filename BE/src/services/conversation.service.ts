@@ -35,6 +35,9 @@ export type ConversationStep =
   | "RECRUITER_TIMING"
   | "RECRUITER_URGENCY"
   | "APPLICATION_REVIEW"
+  | "ACCOUNT_PAUSED_CHOICE"
+  | "ACCOUNT_DELETED_CHOICE"
+  | "ACCOUNT_ROLE_LOCKED_CHOICE"
   | "DONE";
 
 export type ConversationFlow =

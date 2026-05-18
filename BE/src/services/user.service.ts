@@ -2,6 +2,8 @@ import { supabaseAdmin } from "./supabase.service";
 
 export type AppMode = "worker" | "recruiter";
 
+export type AccountStatus = "active" | "paused" | "deleted" | "banned";
+
 export type UserRow = {
   id: string;
   phone: string;
@@ -11,6 +13,9 @@ export type UserRow = {
   full_address?: string | null;
   current_mode: AppMode;
   subscription_plan?: string | null;
+  account_status?: AccountStatus;
+  paused_at?: string | null;
+  deleted_at?: string | null;
 };
 
 export type WorkerProfileRow = {

@@ -10,6 +10,9 @@ import { upsertIdentityByPhone } from "./user.service";
 import { upsertWorkerProfile } from "./worker.service";
 import { upsertRecruiterProfile } from "./recruiter.service";
 import { handleApplicationReplyFromWhatsApp } from "./applications.service";
+import { handleAccountLifecycleWhatsApp } from "./accountLifecycleWhatsApp";
+import { handleAccountRoleLockedWhatsApp, blockOnboardingIfSingleRoleLocked } from "./accountRoleWhatsApp";
+import { accountStatusOf, getUserByPhoneForLifecycle } from "./accountLifecycle.service";
 import { createJob, findJobsForWorker } from "./jobs.service";
 import { createMagicLinkForUser } from "./magicLink.service";
 import {
@@ -305,6 +308,14 @@ export async function handleIncomingWhatsAppMessage(payload: unknown) {
   const text = msg.text;
   const norm = normalizeText(text);
 
+  if (await handleAccountLifecycleWhatsApp(phone, text, norm)) {
+    return;
+  }
+
+  if (await handleAccountRoleLockedWhatsApp(phone, text, norm)) {
+    return;
+  }
+
   if (await handleApplicationReplyFromWhatsApp(phone, text)) {
     return;
   }
@@ -359,6 +370,7 @@ export async function handleIncomingWhatsAppMessage(payload: unknown) {
   if (state.current_step !== "START" && state.current_step !== "CHOOSE_ROLE") {
     const flowRole = state.metadata.role as FlowRole | undefined;
     if (flowRole === "worker" && detectHiringIntent(text)) {
+      if (await blockOnboardingIfSingleRoleLocked(phone, "recruiter")) return;
       const meta = { role: "recruiter" as FlowRole, _history: ["CHOOSE_ROLE" as const] };
       await setConversationState(phone, "RECRUITER_JOB_CATEGORY", meta, {
         last_intent: "hiring_intent_switch",
@@ -369,6 +381,7 @@ export async function handleIncomingWhatsAppMessage(payload: unknown) {
       return;
     }
     if (flowRole === "recruiter" && detectJobSeekingIntent(text)) {
+      if (await blockOnboardingIfSingleRoleLocked(phone, "worker")) return;
       const meta = { role: "worker" as FlowRole, _history: ["CHOOSE_ROLE" as const] };
       await setConversationState(phone, "WORKER_NAME", meta, {
         last_intent: "job_intent_switch",
@@ -382,18 +395,25 @@ export async function handleIncomingWhatsAppMessage(payload: unknown) {
 
   const quickEntry = state.current_step === "START" || state.current_step === "CHOOSE_ROLE";
   if (quickEntry) {
+    const pausedAtEntry = await getUserByPhoneForLifecycle(phone);
+    if (pausedAtEntry && accountStatusOf(pausedAtEntry) === "paused") {
+      if (await handleAccountLifecycleWhatsApp(phone, text, norm)) return;
+    }
     if (cmd === "switch") {
+      if (await handleAccountRoleLockedWhatsApp(phone, text, norm)) return;
       await setConversationState(phone, "CHOOSE_ROLE", {}, { last_intent: "switch", current_flow: "idle" });
       await sendWhatsAppText(phone, promptForStep("worker", "CHOOSE_ROLE"));
       return;
     }
 
     if (cmd === "find_jobs" || cmd === "work" || cmd === "apply") {
+      if (await blockOnboardingIfSingleRoleLocked(phone, "worker")) return;
       await beginWorkerOnboarding(phone, cmd ?? "find_jobs");
       return;
     }
 
     if (cmd === "hire" || cmd === "post_job") {
+      if (await blockOnboardingIfSingleRoleLocked(phone, "recruiter")) return;
       await beginRecruiterOnboarding(phone, cmd ?? "hire");
       return;
     }
@@ -401,15 +421,22 @@ export async function handleIncomingWhatsAppMessage(payload: unknown) {
 
   if (state.current_step === "START") {
     if (isHi(text)) {
+      const pausedUser = await getUserByPhoneForLifecycle(phone);
+      if (pausedUser && accountStatusOf(pausedUser) === "paused") {
+        if (await handleAccountLifecycleWhatsApp(phone, text, norm)) return;
+      }
+      if (await handleAccountRoleLockedWhatsApp(phone, text, norm)) return;
       await setConversationState(phone, "CHOOSE_ROLE", {}, { last_intent: "hi", current_flow: "idle" });
       await sendWhatsAppText(phone, promptForStep("worker", "CHOOSE_ROLE"));
       return;
     }
     if (detectHiringIntent(text)) {
+      if (await blockOnboardingIfSingleRoleLocked(phone, "recruiter")) return;
       await beginRecruiterOnboarding(phone, "hiring_intent");
       return;
     }
     if (detectJobSeekingIntent(text)) {
+      if (await blockOnboardingIfSingleRoleLocked(phone, "worker")) return;
       await beginWorkerOnboarding(phone, "job_intent");
       return;
     }
@@ -419,6 +446,11 @@ export async function handleIncomingWhatsAppMessage(payload: unknown) {
   }
 
   if (state.current_step === "CHOOSE_ROLE") {
+    const pausedUser = await getUserByPhoneForLifecycle(phone);
+    if (pausedUser && accountStatusOf(pausedUser) === "paused") {
+      if (await handleAccountLifecycleWhatsApp(phone, text, norm)) return;
+    }
+    if (await handleAccountRoleLockedWhatsApp(phone, text, norm)) return;
     const role = roleChoiceFromText(text);
     if (!role) {
       await sendWhatsAppText(phone, "Please reply 1 (Job) or 2 (Hiring) — ya bhejo: hire / find jobs");

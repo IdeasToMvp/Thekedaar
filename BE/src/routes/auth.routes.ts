@@ -3,6 +3,12 @@ import { z } from "zod";
 import { handleFeedGet } from "../handlers/feed.handler";
 import { exchangeMagicLinkToken, signSessionJwt, sessionClaimsForUserId } from "../services/magicLink.service";
 import { requestLoginLinkViaWhatsApp } from "../services/requestLoginLink.service";
+import {
+  deleteAccount,
+  pauseAccount,
+  reactivateAccount,
+} from "../services/accountLifecycle.service";
+import { isAccountRestrictedError } from "../errors/accountErrors";
 import { getUserWithProfiles, updateUserProfile, type UserRow } from "../services/user.service";
 import { allowRateLimit } from "../utils/rateLimit";
 import { normalizePhoneForWhatsApp } from "../utils/phone";
@@ -31,6 +37,9 @@ function mePayload(full: FullUser) {
       current_mode: full.user.current_mode,
       can_seek: full.worker_profile != null,
       can_hire: full.recruiter_profile != null,
+      account_status: full.user.account_status ?? "active",
+      paused_at: full.user.paused_at ?? null,
+      deleted_at: full.user.deleted_at ?? null,
       subscription: subscriptionPayload(full.user as UserRow),
     },
     worker_profile: full.worker_profile,
@@ -57,6 +66,9 @@ router.post("/exchange", async (req, res) => {
     }
     return res.status(200).json({ sessionToken, ...mePayload(full) });
   } catch (e: unknown) {
+    if (isAccountRestrictedError(e)) {
+      return res.status(e.statusCode).json({ error: e.message, code: e.code });
+    }
     const msg = e instanceof Error ? e.message : "Exchange failed";
     const status =
       msg.includes("expired") ? 410 :
@@ -126,6 +138,45 @@ const ProfilePatchSchema = z.object({
       company_name: z.string().max(200).optional().nullable(),
     })
     .optional(),
+});
+
+router.post("/account/pause", requireSession, async (req, res) => {
+  const session = (req as RequestWithSession).session;
+  try {
+    const user = await pauseAccount(session.sub);
+    const full = await getUserWithProfiles(user.id);
+    if (!full) return res.status(404).json({ error: "User not found" });
+    return res.status(200).json({ ok: true, ...mePayload(full) });
+  } catch (e: unknown) {
+    const msg = e instanceof Error ? e.message : "Could not pause account";
+    return res.status(400).json({ error: msg });
+  }
+});
+
+router.post("/account/reactivate", requireSession, async (req, res) => {
+  const session = (req as RequestWithSession).session;
+  try {
+    const user = await reactivateAccount(session.sub);
+    const claims = await sessionClaimsForUserId(user.id);
+    const sessionToken = signSessionJwt(claims);
+    const full = await getUserWithProfiles(user.id);
+    if (!full) return res.status(404).json({ error: "User not found" });
+    return res.status(200).json({ ok: true, sessionToken, ...mePayload(full) });
+  } catch (e: unknown) {
+    const msg = e instanceof Error ? e.message : "Could not reactivate account";
+    return res.status(400).json({ error: msg });
+  }
+});
+
+router.post("/account/delete", requireSession, async (req, res) => {
+  const session = (req as RequestWithSession).session;
+  try {
+    await deleteAccount(session.sub);
+    return res.status(200).json({ ok: true, deleted: true });
+  } catch (e: unknown) {
+    const msg = e instanceof Error ? e.message : "Could not delete account";
+    return res.status(400).json({ error: msg });
+  }
 });
 
 router.patch("/profile", requireSession, async (req, res) => {

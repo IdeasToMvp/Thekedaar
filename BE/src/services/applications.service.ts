@@ -1,4 +1,5 @@
 import { normalizeText } from "../utils/messageParser";
+import { assertUserCanMutate, isPubliclyVisibleAccount } from "./accountLifecycle.service";
 import { supabaseAdmin } from "./supabase.service";
 import { setConversationState } from "./conversation.service";
 import { getUserById, getUserByPhone, getUserCapabilities } from "./user.service";
@@ -329,6 +330,12 @@ export async function submitJobApplication(input: {
   }
   if (job.recruiter_id === input.workerId) {
     throw new Error("You cannot apply to your own listing");
+  }
+
+  await assertUserCanMutate(input.workerId);
+  const recruiter = await getUserById(job.recruiter_id);
+  if (!isPubliclyVisibleAccount(recruiter)) {
+    throw new Error("This listing is not available");
   }
 
   const worker = await fetchWorkerProfile(input.workerId);

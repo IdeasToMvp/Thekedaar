@@ -1,5 +1,10 @@
 import { supabaseAdmin } from "./supabase.service";
 import { formatPublicLocation } from "../utils/publicLocation";
+import {
+  assertUserCanAuthenticate,
+  assertUserCanMutate,
+  isPubliclyVisibleAccount,
+} from "./accountLifecycle.service";
 import { getUserById } from "./user.service";
 import { normalizePlan, type BillingPlan } from "../utils/planLimits";
 import { isUrgentUrgency } from "../utils/creditPricing";
@@ -201,6 +206,7 @@ export async function createJob(input: {
   requiredDocuments?: string[] | null;
   experienceYearsRequired?: number | null;
 }) {
+  await assertUserCanMutate(input.recruiterId);
   const { urgentPaid } = await chargeForNewJob(input.recruiterId, input.urgency);
 
   const sb = supabaseAdmin();
@@ -246,6 +252,7 @@ export async function updateJobForRecruiter(input: {
   requiredDocuments?: string[] | null;
   experienceYearsRequired?: number | null;
 }) {
+  await assertUserCanMutate(input.recruiterId);
   const existing = await getJobById(input.jobId);
   if (!existing) throw new Error("Job not found");
   if (existing.recruiter_id !== input.recruiterId) {
@@ -310,6 +317,7 @@ export async function closeJobForRecruiter(input: {
   hireSource?: HireSource;
   hiredWorkerName?: string | null;
 }) {
+  await assertUserCanAuthenticate(input.recruiterId);
   const existing = await getJobById(input.jobId);
   if (!existing) throw new Error("Job not found");
   if (existing.recruiter_id !== input.recruiterId) {
@@ -437,7 +445,9 @@ export async function findJobsForWorker(input: {
   const sb = supabaseAdmin();
   let q = sb
     .from("jobs")
-    .select("id,title,city,salary,timing,accommodation,created_at")
+    .select("id,title,city,salary,timing,accommodation,created_at,recruiter_id,listing_status, users!inner(account_status)")
+    .eq("listing_status", "open")
+    .eq("users.account_status", "active")
     .order("created_at", { ascending: false })
     .limit(5);
 
@@ -458,14 +468,30 @@ export async function findJobsForWorker(input: {
 }
 
 async function fetchRecruitersMap(recruiterIds: string[]): Promise<
-  Map<string, { phone: string; name: string | null; subscription_plan: string | null }>
+  Map<
+    string,
+    {
+      phone: string;
+      name: string | null;
+      subscription_plan: string | null;
+      account_status: string | null;
+    }
+  >
 > {
-  const map = new Map<string, { phone: string; name: string | null; subscription_plan: string | null }>();
+  const map = new Map<
+    string,
+    {
+      phone: string;
+      name: string | null;
+      subscription_plan: string | null;
+      account_status: string | null;
+    }
+  >();
   if (recruiterIds.length === 0) return map;
   const sb = supabaseAdmin();
   const { data, error } = await sb
     .from("users")
-    .select("id,phone,name,subscription_plan")
+    .select("id,phone,name,subscription_plan,account_status")
     .in("id", recruiterIds);
   if (error) throw error;
   for (const row of data ?? []) {
@@ -473,9 +499,24 @@ async function fetchRecruitersMap(recruiterIds: string[]): Promise<
       phone: row.phone as string,
       name: (row.name as string | null) ?? null,
       subscription_plan: (row.subscription_plan as string | null) ?? null,
+      account_status: (row.account_status as string | null) ?? "active",
     });
   }
   return map;
+}
+
+function jobVisibleOnPublicFeed(
+  row: JobFeedRow,
+  recruiter: { account_status: string | null } | undefined,
+  viewerId?: string,
+): boolean {
+  if (row.listing_status === "closed") return false;
+  if (!recruiter) return false;
+  const userLike = { account_status: recruiter.account_status ?? "active" } as Parameters<
+    typeof isPubliclyVisibleAccount
+  >[0];
+  if (!isPubliclyVisibleAccount(userLike)) return false;
+  return true;
 }
 
 export async function listJobsForFeed(input: {
@@ -502,9 +543,10 @@ export async function listJobsForFeed(input: {
 
   const { data, error } = await q;
   if (error) throw error;
-  const rows = (data ?? []) as JobFeedRow[];
-  const ids = [...new Set(rows.map((r) => r.recruiter_id))];
+  const allRows = (data ?? []) as JobFeedRow[];
+  const ids = [...new Set(allRows.map((r) => r.recruiter_id))];
   const recruiters = await fetchRecruitersMap(ids);
+  const rows = allRows.filter((row) => jobVisibleOnPublicFeed(row, recruiters.get(row.recruiter_id), input.viewerId));
   const jobs = rows.map((row) => {
     const rec = recruiters.get(row.recruiter_id);
     if (!rec) {
@@ -587,12 +629,17 @@ export async function recordFeedJobContact(input: {
   jobId: string;
   action: "apply" | "whatsapp" | "hire";
 }): Promise<{ recorded: boolean; used: number; max: number }> {
+  await assertUserCanMutate(input.userId);
   const user = await getUserById(input.userId);
   if (!user) throw new Error("User not found");
 
   const job = await getJobById(input.jobId);
   if (!job) throw new Error("Job not found");
   assertJobIsOpen(job);
+  const recruiter = await getUserById(job.recruiter_id);
+  if (!isPubliclyVisibleAccount(recruiter)) {
+    throw new Error("This listing is not available");
+  }
 
   const already = await hasUserContactedJob(input.userId, input.jobId);
   const used = await countUserFeedContacts(input.userId);

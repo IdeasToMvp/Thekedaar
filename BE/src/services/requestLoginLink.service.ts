@@ -1,3 +1,4 @@
+import { accountStatusOf, supportEmailLine } from "./accountLifecycle.service";
 import { createMagicLinkForUser } from "./magicLink.service";
 import { getUserByPhone } from "./user.service";
 import { sendWhatsAppText } from "./whatsapp.service";
@@ -5,7 +6,7 @@ import { normalizePhoneForWhatsApp } from "../utils/phone";
 
 export type RequestLoginLinkResult =
   | { sent: true; messageId?: string; devLoginUrl?: string }
-  | { sent: false; reason: "not_registered" };
+  | { sent: false; reason: "not_registered" | "account_restricted"; message?: string };
 
 function webBaseUrl(): string | null {
   const raw = process.env.WEB_BASE_URL?.trim();
@@ -31,6 +32,22 @@ export async function requestLoginLinkViaWhatsApp(rawPhone: string): Promise<Req
   if (!user) {
     console.info(`request-login-link: no user for phone ${normalized.slice(0, 4)}***`);
     return { sent: false, reason: "not_registered" };
+  }
+
+  const status = accountStatusOf(user);
+  if (status === "banned") {
+    return {
+      sent: false,
+      reason: "account_restricted",
+      message: `Your account is currently restricted. ${supportEmailLine()}`,
+    };
+  }
+  if (status === "deleted") {
+    return {
+      sent: false,
+      reason: "account_restricted",
+      message: "This account has been deleted. Send Hi on WhatsApp to restore or create a new account.",
+    };
   }
 
   const webBase = webBaseUrl();
