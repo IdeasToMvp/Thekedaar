@@ -27,7 +27,7 @@ export default async function LoginPage({ searchParams }: Props) {
   }
 
   let subtitle =
-    "Enter the mobile number you use on WhatsApp. We will send you a one-time link to sign in — no password.";
+    "Already on Thekedaar? Enter your WhatsApp number for a login link. New here? Send Hi on WhatsApp to get started.";
   if (intent === "apply" && jobId) {
     subtitle = "Sign in to apply for this job or contact the employer on WhatsApp.";
   } else if (intent === "hire") {

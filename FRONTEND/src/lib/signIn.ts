@@ -1,29 +1,58 @@
 export const LOGIN_PATH = "/login";
-/** Public job listings on the marketing home page. */
+/** Marketing home page. */
 export const JOBS_HOME_PATH = "/";
-/** Landing page job feed section (after sign-in). */
-export const JOBS_SECTION_PATH = "/#jobs";
 /** Signed-in app shell (nav, apply, filters). */
 export const APP_FEED_PATH = "/feed";
 /** @deprecated Use JOBS_HOME_PATH or APP_FEED_PATH explicitly. */
 export const FEED_PATH = APP_FEED_PATH;
 
-/** Where to send users after sign-in when no returnTo is provided. */
-export function defaultReturnAfterAuth(intent?: "apply" | "hire"): string {
-  if (intent === "hire") return "/feed/my-listings";
-  return JOBS_SECTION_PATH;
+/** Landing-only paths — after magic-link sign-in, send users to the app instead. */
+export function isPublicJobsReturnPath(path: string): boolean {
+  const p = path.split("?")[0] ?? path;
+  return p === JOBS_HOME_PATH || p === "/#jobs";
 }
 
-/** Landing “Sign in” when the user already has a session — open the app feed. */
-export function signedInAppPath(opts?: { intent?: "apply" | "hire" }): string {
-  if (opts?.intent === "hire") return "/feed/my-listings";
+/** Signed-in app destination (feed or employer listings). */
+export function signedInAppPath(opts?: {
+  intent?: "apply" | "hire";
+  canHire?: boolean;
+  canSeek?: boolean;
+}): string {
+  if (opts?.intent === "hire" || (opts?.canHire && !opts?.canSeek)) {
+    return "/feed/my-listings";
+  }
   return APP_FEED_PATH;
 }
 
-/** Normalize return paths from middleware or old links. */
+/** Default returnTo for /login when none specified. */
+export function defaultReturnAfterAuth(intent?: "apply" | "hire"): string {
+  return signedInAppPath({ intent });
+}
+
+/** After magic link: honor deep links; map old landing returnTo to app routes. */
+export function destinationAfterMagicLink(
+  user: { can_hire?: boolean; can_seek?: boolean },
+  returnToParam: string | null | undefined,
+  intent?: "apply" | "hire",
+): string {
+  if (
+    returnToParam &&
+    returnToParam.startsWith("/") &&
+    !returnToParam.startsWith("/login") &&
+    !isPublicJobsReturnPath(returnToParam)
+  ) {
+    return returnToParam;
+  }
+  return signedInAppPath({
+    intent,
+    canHire: user.can_hire,
+    canSeek: user.can_seek,
+  });
+}
+
+/** Normalize return paths on /login page (guest flow). */
 export function normalizeReturnTo(path: string, intent?: "apply" | "hire"): string {
-  if (path === APP_FEED_PATH && intent !== "hire") return JOBS_SECTION_PATH;
-  if (path === JOBS_HOME_PATH) return JOBS_SECTION_PATH;
+  if (isPublicJobsReturnPath(path)) return defaultReturnAfterAuth(intent);
   return path;
 }
 

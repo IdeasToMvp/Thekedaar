@@ -1,5 +1,4 @@
 import Image from "next/image";
-import Link from "next/link";
 import { SignInLink } from "@/components/auth/SignInLink";
 
 export function Hero() {
@@ -28,27 +27,27 @@ export function Hero() {
         <p className="text-sm font-semibold uppercase tracking-wider text-brand">Gurugram &amp; NCR</p>
         <h1 className="mt-3 max-w-xl text-4xl font-bold leading-tight tracking-tight text-foreground sm:max-w-2xl sm:text-5xl">
           Find kaam. Post naukri.{" "}
-          <span className="text-brand">All on WhatsApp — browse jobs here first.</span>
+          <span className="text-brand">All on WhatsApp — manage everything in the app.</span>
         </h1>
         <p className="mt-5 max-w-lg text-lg leading-relaxed text-muted sm:max-w-xl">
-          Thekedaar connects workers and employers for daily wage, site, factory, and household jobs. No password
-          needed to browse — sign in when you want to apply or post.
+          Thekedaar connects workers and employers for daily wage, site, factory, and household jobs. Sign in with
+          WhatsApp when you are ready to apply, post, or hire.
         </p>
         <div className="mt-8 flex flex-wrap gap-3">
-          <a
-            href="#jobs"
-            className="inline-flex h-12 items-center justify-center rounded-full bg-brand px-6 text-sm font-semibold text-white shadow-lg shadow-brand/25 transition hover:bg-brand-dark"
-          >
-            See open jobs
-          </a>
-          <SignInLink className="inline-flex h-12 items-center justify-center rounded-full border-2 border-border/80 bg-white/90 px-6 text-sm font-semibold text-foreground shadow-sm backdrop-blur-sm transition hover:bg-white">
-            Sign in
+          <SignInLink className="inline-flex h-12 items-center justify-center rounded-full bg-brand px-6 text-sm font-semibold text-white shadow-lg shadow-brand/25 transition hover:bg-brand-dark">
+            Get started
           </SignInLink>
+          <a
+            href="#how-it-works"
+            className="inline-flex h-12 items-center justify-center rounded-full border-2 border-border/80 bg-white/90 px-6 text-sm font-semibold text-foreground shadow-sm backdrop-blur-sm transition hover:bg-white"
+          >
+            How it works
+          </a>
         </div>
         <dl className="mt-10 grid max-w-lg grid-cols-3 gap-4 border-t border-border/60 pt-8 sm:mt-12">
           <div>
             <dt className="text-xs font-medium uppercase tracking-wide text-muted">For workers</dt>
-            <dd className="mt-1 text-sm font-semibold text-foreground">Find nearby kaam</dd>
+            <dd className="mt-1 text-sm font-semibold text-foreground">Apply to jobs</dd>
           </div>
           <div>
             <dt className="text-xs font-medium uppercase tracking-wide text-muted">For employers</dt>

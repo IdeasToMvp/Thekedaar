@@ -264,7 +264,7 @@ function magicLoginUrl(userId: string, phone: string): Promise<string> {
     const host = webBase.replace(/^https?:\/\//, "").replace(/\/$/, "");
     const isLocal = /^(localhost|127\.0\.0\.1)(:\d+)?$/i.test(host);
     const base = `${isLocal ? "http" : "https"}://${host}`;
-    return `${base}/login/${token}?returnTo=${encodeURIComponent("/#jobs")}`;
+    return `${base}/login/${token}?returnTo=${encodeURIComponent("/feed")}`;
   });
 }
 

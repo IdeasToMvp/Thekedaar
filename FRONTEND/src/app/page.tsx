@@ -1,9 +1,12 @@
 import { Hero } from "@/components/landing/Hero";
 import { HowItWorks } from "@/components/landing/HowItWorks";
+import { LandingAbout } from "@/components/landing/LandingAbout";
+import { LandingContact } from "@/components/landing/LandingContact";
+import { LandingFaq } from "@/components/landing/LandingFaq";
+import { LandingPrivacy } from "@/components/landing/LandingPrivacy";
 import { SignInCta } from "@/components/landing/SignInCta";
 import { SiteFooter } from "@/components/landing/SiteFooter";
 import { SiteHeader } from "@/components/landing/SiteHeader";
-import { JobFeed } from "@/components/jobs/JobFeed";
 
 export default function HomePage() {
   return (
@@ -12,7 +15,10 @@ export default function HomePage() {
       <main>
         <Hero />
         <HowItWorks />
-        <JobFeed />
+        <LandingAbout />
+        <LandingFaq />
+        <LandingContact />
+        <LandingPrivacy />
         <SignInCta />
       </main>
       <SiteFooter />

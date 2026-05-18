@@ -43,7 +43,7 @@ export async function requestLoginLinkViaWhatsApp(rawPhone: string): Promise<Req
     phone: user.phone,
   });
 
-  const url = `${webBase}/login/${token}?returnTo=${encodeURIComponent("/#jobs")}`;
+  const url = `${webBase}/login/${token}?returnTo=${encodeURIComponent("/feed")}`;
   const body =
     "Here is your Thekedaar website link (tap to open — works once):\n\n" +
     url +

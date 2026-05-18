@@ -2,9 +2,10 @@
 
 import Link from "next/link";
 import { useState } from "react";
+import { WhatsAppHiButton } from "./WhatsAppHiButton";
 
 const inputClass =
-  "w-full min-h-12 rounded-xl border border-border bg-slate-50/80 px-4 py-3 text-base text-foreground outline-none transition placeholder:text-muted focus:border-brand focus:bg-white focus:ring-2 focus:ring-brand/20";
+  "w-full min-h-12 rounded-xl border border-border bg-background px-4 py-3 text-base text-foreground outline-none transition placeholder:text-muted focus:border-brand focus:ring-2 focus:ring-brand/15";
 
 type Props = {
   returnTo: string;
@@ -12,18 +13,19 @@ type Props = {
   jobId?: string;
 };
 
+type View = "default" | "link_sent" | "not_registered";
+
 export function LoginForm({ returnTo, intent, jobId }: Props) {
   const [phone, setPhone] = useState("");
   const [loading, setLoading] = useState(false);
-  const [done, setDone] = useState(false);
+  const [view, setView] = useState<View>("default");
   const [devLoginUrl, setDevLoginUrl] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
-
-  const whatsappUrl = process.env.NEXT_PUBLIC_WHATSAPP_URL?.trim();
 
   async function submit(e: React.FormEvent) {
     e.preventDefault();
     setError(null);
+    setView("default");
     const trimmed = phone.trim();
     if (trimmed.length < 8) {
       setError("Enter a valid mobile number.");
@@ -45,7 +47,7 @@ export function LoginForm({ returnTo, intent, jobId }: Props) {
         const msg = typeof data?.error === "string" ? data.error : "Something went wrong.";
         if (msg.includes("190") || msg.toLowerCase().includes("authentication error")) {
           setError(
-            `${msg} Fix WHATSAPP_ACCESS_TOKEN in the backend .env (Meta Developer Console → your app → WhatsApp → API setup → generate a new token).`,
+            `${msg} Update WHATSAPP_ACCESS_TOKEN in the backend if you are an admin.`,
           );
         } else {
           setError(msg);
@@ -53,9 +55,7 @@ export function LoginForm({ returnTo, intent, jobId }: Props) {
         return;
       }
       if (data?.sent === false && data?.reason === "not_registered") {
-        setError(
-          "This number is not registered with Thekedaar yet. Message us on WhatsApp first (send Hi), finish setup, then request a link here.",
-        );
+        setView("not_registered");
         return;
       }
       if (data?.sent !== true) {
@@ -65,13 +65,13 @@ export function LoginForm({ returnTo, intent, jobId }: Props) {
       if (typeof data?.devLoginUrl === "string") {
         setDevLoginUrl(data.devLoginUrl);
       }
-      setDone(true);
+      setView("link_sent");
     } finally {
       setLoading(false);
     }
   }
 
-  if (done) {
+  if (view === "link_sent") {
     return (
       <div className="space-y-4">
         <div
@@ -90,80 +90,111 @@ export function LoginForm({ returnTo, intent, jobId }: Props) {
             Open sign-in link
           </Link>
         ) : null}
+        <button
+          type="button"
+          onClick={() => {
+            setView("default");
+            setDevLoginUrl(null);
+          }}
+          className="w-full text-center text-sm font-medium text-brand hover:underline"
+        >
+          Use a different number
+        </button>
         <Link
           href={returnTo.startsWith("/") ? returnTo : "/"}
-          className="flex min-h-12 w-full items-center justify-center rounded-xl border border-border bg-white px-6 text-sm font-semibold text-foreground transition hover:bg-slate-50"
+          className="flex min-h-11 w-full items-center justify-center rounded-xl border border-border text-sm font-semibold text-foreground hover:bg-slate-50"
         >
-          Back to jobs
+          Back to home
         </Link>
       </div>
     );
   }
 
-  return (
-    <form onSubmit={submit} className="space-y-6">
-      <ul className="space-y-3 text-sm text-muted">
-        <li className="flex gap-2">
-          <span className="font-bold text-brand">1.</span>
-          <span>Enter your WhatsApp mobile number below.</span>
-        </li>
-        <li className="flex gap-2">
-          <span className="font-bold text-brand">2.</span>
-          <span>We send a personal link on WhatsApp (no SMS OTP, no password).</span>
-        </li>
-        <li className="flex gap-2">
-          <span className="font-bold text-brand">3.</span>
-          <span>Tap the link — you are signed in on this device.</span>
-        </li>
-      </ul>
-
-      <div className="space-y-3 border-t border-border/80 pt-6">
-        <label htmlFor="login-phone" className="block text-sm font-semibold text-foreground">
-          Mobile number
-        </label>
-        <input
-          id="login-phone"
-          value={phone}
-          onChange={(e) => setPhone(e.target.value)}
-          placeholder="e.g. 9876543210"
-          className={inputClass}
-          inputMode="tel"
-          autoComplete="tel"
-          disabled={loading}
-          required
-        />
-        {error ? (
-          <p className="rounded-xl bg-red-50 px-3 py-2 text-sm font-medium text-red-800" role="alert">
-            {error}
-          </p>
-        ) : null}
-        <button
-          type="submit"
-          disabled={loading}
-          className="flex min-h-12 w-full items-center justify-center rounded-xl bg-brand text-sm font-semibold text-white shadow-lg shadow-brand/25 transition hover:bg-brand-dark disabled:cursor-not-allowed disabled:opacity-50"
+  if (view === "not_registered") {
+    return (
+      <div className="space-y-4">
+        <div
+          className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm leading-relaxed text-amber-950"
+          role="alert"
         >
-          {loading ? "Sending…" : "Send link on WhatsApp"}
+          <p className="font-semibold">This number is not registered yet</p>
+          <p className="mt-1">
+            New users must message us on WhatsApp first. Send <strong>Hi</strong>, finish the short setup, then
+            come back here to get your login link.
+          </p>
+        </div>
+        <WhatsAppHiButton label="Send Hi on WhatsApp" />
+        <button
+          type="button"
+          onClick={() => setView("default")}
+          className="w-full text-center text-sm font-medium text-brand hover:underline"
+        >
+          Already registered? Try again
         </button>
       </div>
+    );
+  }
 
-      {whatsappUrl ? (
-        <p className="text-center text-sm text-muted">
-          New here?{" "}
-          <a
-            href={whatsappUrl}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="font-semibold text-brand underline-offset-2 hover:underline"
-          >
-            Message us on WhatsApp
-          </a>{" "}
-          to get started.
+  return (
+    <div className="space-y-6">
+      <section className="rounded-xl border border-border bg-background p-4 sm:p-5">
+        <h2 className="text-sm font-bold text-foreground">Already registered?</h2>
+        <p className="mt-1 text-sm text-muted">
+          Enter the WhatsApp number you use on Thekedaar. We will send a one-time login link (no password).
         </p>
-      ) : null}
+        <form onSubmit={submit} className="mt-4 space-y-3">
+          <label htmlFor="login-phone" className="sr-only">
+            Mobile number
+          </label>
+          <input
+            id="login-phone"
+            value={phone}
+            onChange={(e) => setPhone(e.target.value)}
+            placeholder="e.g. 9876543210"
+            className={inputClass}
+            inputMode="tel"
+            autoComplete="tel"
+            disabled={loading}
+            required
+          />
+          {error ? (
+            <p className="rounded-xl bg-red-50 px-3 py-2 text-sm font-medium text-red-800" role="alert">
+              {error}
+            </p>
+          ) : null}
+          <button
+            type="submit"
+            disabled={loading}
+            className="flex min-h-12 w-full items-center justify-center rounded-xl bg-brand text-sm font-semibold text-white shadow-lg shadow-brand/25 transition hover:bg-brand-dark disabled:cursor-not-allowed disabled:opacity-50"
+          >
+            {loading ? "Sending…" : "Send login link on WhatsApp"}
+          </button>
+        </form>
+      </section>
+
+      <div className="relative">
+        <div className="absolute inset-0 flex items-center" aria-hidden>
+          <div className="w-full border-t border-border" />
+        </div>
+        <p className="relative mx-auto w-fit bg-surface px-3 text-xs font-medium uppercase tracking-wide text-muted">
+          or
+        </p>
+      </div>
+
+      <section className="rounded-xl border border-border bg-slate-50/80 p-4 sm:p-5">
+        <h2 className="text-sm font-bold text-foreground">New to Thekedaar?</h2>
+        <p className="mt-1 text-sm text-muted">
+          Message us on WhatsApp with <strong>Hi</strong>. We will set up your profile in chat — then you can sign in
+          here.
+        </p>
+        <div className="mt-4">
+          <WhatsAppHiButton label="Send Hi" />
+        </div>
+      </section>
 
       <input type="hidden" name="returnTo" value={returnTo} />
       {intent ? <input type="hidden" name="intent" value={intent} /> : null}
       {jobId ? <input type="hidden" name="jobId" value={jobId} /> : null}
-    </form>
+    </div>
   );
 }

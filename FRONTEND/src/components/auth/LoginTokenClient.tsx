@@ -1,7 +1,8 @@
 "use client";
 
 import { AuthShell } from "@/components/auth/AuthShell";
-import { defaultReturnAfterAuth, JOBS_HOME_PATH, normalizeReturnTo } from "@/lib/signIn";
+import { destinationAfterMagicLink } from "@/lib/signIn";
+import type { MeUser } from "@/lib/auth/types";
 import Link from "next/link";
 import { useParams, useSearchParams } from "next/navigation";
 import { useEffect, useState } from "react";
@@ -13,10 +14,6 @@ export function LoginTokenClient() {
   const intentParam = searchParams.get("intent");
   const intent = intentParam === "apply" || intentParam === "hire" ? intentParam : undefined;
   const returnToParam = searchParams.get("returnTo");
-  const returnTo =
-    returnToParam && returnToParam.startsWith("/") && !returnToParam.startsWith("/login")
-      ? normalizeReturnTo(returnToParam, intent)
-      : defaultReturnAfterAuth(intent);
 
   const [status, setStatus] = useState<"loading" | "ok" | "error">("loading");
   const [message, setMessage] = useState("Signing you in…");
@@ -37,7 +34,10 @@ export function LoginTokenClient() {
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ token }),
         });
-        const data = await resp.json().catch(() => ({}));
+        const data = (await resp.json().catch(() => ({}))) as {
+          error?: string;
+          user?: MeUser | null;
+        };
         if (!resp.ok) {
           if (!cancelled) {
             setStatus("error");
@@ -45,11 +45,18 @@ export function LoginTokenClient() {
           }
           return;
         }
+        const user = data.user;
+        if (!user) {
+          if (!cancelled) {
+            setStatus("error");
+            setMessage("Sign-in failed. Please request a new link.");
+          }
+          return;
+        }
         if (!cancelled) {
           setStatus("ok");
           setMessage("Signed in. Redirecting…");
-          const dest = returnTo.startsWith("/") ? returnTo : JOBS_HOME_PATH;
-          // Full navigation so the session cookie is applied before the next page loads.
+          const dest = destinationAfterMagicLink(user, returnToParam, intent);
           window.location.assign(dest);
         }
       } catch {
@@ -63,7 +70,7 @@ export function LoginTokenClient() {
     return () => {
       cancelled = true;
     };
-  }, [token, returnTo]);
+  }, [token, returnToParam, intent]);
 
   return (
     <AuthShell title="Completing sign-in" subtitle="Please wait while we verify your link.">
@@ -89,8 +96,7 @@ export function LoginTokenClient() {
               Request a new link
             </Link>
             <p className="text-xs text-muted">
-              Links work once. If you already opened this link, request a new one. For local dev use{" "}
-              <code className="rounded bg-slate-100 px-1">http://localhost:3000</code>, not https.
+              Links work once. If you already opened this link, request a new one.
             </p>
           </div>
         ) : null}

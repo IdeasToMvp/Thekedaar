@@ -4,8 +4,8 @@ const steps = [
     body: "Say you want work or want to hire. We guide you in Hindi or English — no forms to memorize.",
   },
   {
-    title: "Browse jobs on the web",
-    body: "Open roles are listed here. Filter by city and category without creating an account.",
+    title: "Use the app",
+    body: "Sign in on the website to browse jobs, apply, post listings, and manage applications — all tied to your WhatsApp number.",
   },
   {
     title: "Sign in to apply or post",
