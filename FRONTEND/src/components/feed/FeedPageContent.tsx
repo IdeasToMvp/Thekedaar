@@ -48,7 +48,8 @@ export function FeedPageContent() {
   const [jobsError, setJobsError] = useState<string | null>(null);
   const [workersError, setWorkersError] = useState<string | null>(null);
   const [contactedWorkerIds, setContactedWorkerIds] = useState<Set<string>>(new Set());
-  const [workerContactsRemaining, setWorkerContactsRemaining] = useState(10);
+  const [walletBalanceInr, setWalletBalanceInr] = useState<number | null>(null);
+  const [unlockCostInr, setUnlockCostInr] = useState(20);
 
   const [roleId, setRoleId] = useState("");
   const [salaryBand, setSalaryBand] = useState<SalaryBandId>("all");
@@ -100,8 +101,14 @@ export function FeedPageContent() {
       setWorkersHasMore(data.hasMore);
       setWorkersOffset(data.offset + data.workers.length);
       setWorkers((prev) => (append ? [...prev, ...scoped] : scoped));
-      if (!append && data.contactedWorkerIds) {
-        setContactedWorkerIds(new Set(data.contactedWorkerIds));
+      if (!append) {
+        if (data.contactedWorkerIds) {
+          setContactedWorkerIds(new Set(data.contactedWorkerIds));
+        }
+        if (data.limits?.wallet) {
+          setWalletBalanceInr(data.limits.wallet.balanceInr);
+          setUnlockCostInr(data.limits.wallet.unlockCostInr);
+        }
       }
     },
     [cityId, roleId, sort],
@@ -109,8 +116,9 @@ export function FeedPageContent() {
 
   const handleWorkerHired = useCallback((hired: HiredWorker, limits?: WorkerHireLimits) => {
     setContactedWorkerIds((prev) => new Set(prev).add(hired.id));
-    if (limits?.workerContacts) {
-      setWorkerContactsRemaining(limits.workerContacts.remaining);
+    if (limits?.wallet) {
+      setWalletBalanceInr(limits.wallet.balanceInr);
+      setUnlockCostInr(limits.wallet.unlockCostInr);
     }
   }, []);
 
@@ -140,8 +148,9 @@ export function FeedPageContent() {
     fetch("/api/workers/contacted")
       .then((r) => r.json())
       .then((data: { limits?: WorkerHireLimits; contacted?: { workerId: string }[] }) => {
-        if (data.limits?.workerContacts) {
-          setWorkerContactsRemaining(data.limits.workerContacts.remaining);
+        if (data.limits?.wallet) {
+          setWalletBalanceInr(data.limits.wallet.balanceInr);
+          setUnlockCostInr(data.limits.wallet.unlockCostInr);
         }
         if (data.contacted?.length) {
           setContactedWorkerIds(new Set(data.contacted.map((c) => c.workerId)));
@@ -322,7 +331,8 @@ export function FeedPageContent() {
                         worker={w}
                         user={user}
                         hired={contactedWorkerIds.has(w.id)}
-                        contactsRemaining={workerContactsRemaining}
+                        walletBalanceInr={walletBalanceInr ?? undefined}
+                        unlockCostInr={unlockCostInr}
                         onHired={handleWorkerHired}
                       />
                     </li>

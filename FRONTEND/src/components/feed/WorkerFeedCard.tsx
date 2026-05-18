@@ -36,11 +36,12 @@ type Props = {
   worker: FeedWorker;
   user: MeUser;
   hired: boolean;
-  contactsRemaining: number;
+  walletBalanceInr?: number;
+  unlockCostInr?: number;
   onHired: (worker: HiredWorker, limits?: WorkerHireLimits) => void;
 };
 
-export function WorkerFeedCard({ worker, user, hired, contactsRemaining, onHired }: Props) {
+export function WorkerFeedCard({ worker, user, hired, walletBalanceInr, unlockCostInr, onHired }: Props) {
   const own = Boolean(worker.isOwnProfile);
   const skills = worker.skills?.length ? worker.skills : worker.role ? [worker.role] : [];
   const primarySkill = skills[0] ?? "";
@@ -109,7 +110,8 @@ export function WorkerFeedCard({ worker, user, hired, contactsRemaining, onHired
             worker={worker}
             user={user}
             hired={hired}
-            contactsRemaining={contactsRemaining}
+            walletBalanceInr={walletBalanceInr}
+            unlockCostInr={unlockCostInr}
             onHired={onHired}
           />
         )}

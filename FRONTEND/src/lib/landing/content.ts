@@ -19,7 +19,11 @@ export const LANDING_FAQ: { q: string; a: string }[] = [
   },
   {
     q: "Is Thekedaar free?",
-    a: "Browsing and basic use are free during launch. Some employer features may have limits; we will always show limits clearly in the app.",
+    a: "Workers can browse and apply for free. Employers receive ₹100 Theke Credits when they onboard, then pay from their wallet for job posts and worker contact unlocks. Prices are shown in the app.",
+  },
+  {
+    q: "What are Theke Credits?",
+    a: "Theke Credits are prepaid balance for employer hiring features on Thekedaar (e.g. extra job posts or contact unlocks). They are non-refundable, do not expire, and can be used anytime. Theke Credits are used for digital hiring services and are generally non-refundable once added.",
   },
   {
     q: "When is my phone number shared?",
@@ -38,6 +42,7 @@ export const LANDING_FAQ: { q: string; a: string }[] = [
 export const LANDING_PRIVACY_SUMMARY = [
   "We collect your phone number, name, city, and profile details you provide to run the service.",
   "Job and application data is shown to the other party only when you apply, post, approve, or contact — not on a public directory.",
+  "Employers may add Theke Credits (prepaid wallet balance) for paid hiring features; credits are non-refundable, do not expire, and are used for digital hiring services.",
   "We use WhatsApp (Meta) to send login links and notifications; their terms also apply.",
   "You can ask us to correct or delete your data by contacting us below.",
 ];

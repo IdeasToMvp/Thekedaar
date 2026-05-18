@@ -4,6 +4,7 @@ import { handleWorkersFeedGet } from "../handlers/workersFeed.handler";
 import { optionalSession } from "../middleware/optionalSession";
 import { requireSession, type RequestWithSession } from "../middleware/requireSession";
 import { getUserCapabilities } from "../services/user.service";
+import { isWalletError } from "../errors/walletErrors";
 import {
   buildWorkerHireLimits,
   listEmployerContactedWorkers,
@@ -51,11 +52,15 @@ router.post("/:workerId/hire", requireSession, async (req, res) => {
     const limits = await buildWorkerHireLimits(session.sub);
     return res.status(200).json({ ok: true, ...result, limits });
   } catch (e: unknown) {
+    if (isWalletError(e)) {
+      return res.status(e.statusCode).json({
+        error: e.message,
+        code: e.code,
+        ...e.details,
+      });
+    }
     const msg = e instanceof Error ? e.message : "Hire failed";
-    const status =
-      msg.includes("allows contacting") ? 403 :
-      msg.includes("not found") ? 404 :
-      msg.includes("own profile") ? 400 : 400;
+    const status = msg.includes("not found") ? 404 : msg.includes("own profile") ? 400 : 400;
     return res.status(status).json({ error: msg });
   }
 });

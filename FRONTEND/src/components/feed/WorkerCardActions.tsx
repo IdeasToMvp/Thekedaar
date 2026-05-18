@@ -4,17 +4,20 @@ import { useEffect, useState } from "react";
 import type { FeedWorker, HiredWorker, WorkerHireLimits } from "@/lib/workers/types";
 import type { MeUser } from "@/lib/auth/types";
 import { isEmployerAccount } from "@/lib/auth/accountRole";
+import { CreditsInsufficientAlert } from "@/components/credits/CreditsInsufficientAlert";
+import { isInsufficientCredits } from "@/lib/credits/types";
 import { WorkerProfileModal } from "./WorkerProfileModal";
 
 type Props = {
   worker: FeedWorker;
   user: MeUser;
   hired: boolean;
-  contactsRemaining: number;
+  walletBalanceInr?: number;
+  unlockCostInr?: number;
   onHired: (worker: HiredWorker, limits?: WorkerHireLimits) => void;
 };
 
-export function WorkerCardActions({ worker, user, hired, contactsRemaining, onHired }: Props) {
+export function WorkerCardActions({ worker, user, hired, walletBalanceInr, unlockCostInr, onHired }: Props) {
   const employerView = isEmployerAccount(user);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -38,6 +41,9 @@ export function WorkerCardActions({ worker, user, hired, contactsRemaining, onHi
       const resp = await fetch(`/api/workers/${worker.id}/hire`, { method: "POST" });
       const data = await resp.json().catch(() => ({}));
       if (!resp.ok) {
+        if (isInsufficientCredits(data as { code?: string })) {
+          throw new Error(typeof data?.error === "string" ? data.error : "Not enough Theke Credits");
+        }
         throw new Error(typeof data?.error === "string" ? data.error : "Could not unlock contact");
       }
       const unlocked = data.worker as HiredWorker | undefined;
@@ -53,15 +59,19 @@ export function WorkerCardActions({ worker, user, hired, contactsRemaining, onHi
     }
   }
 
-  const limitReached = !contacted && contactsRemaining <= 0;
+  const unlockCost = unlockCostInr ?? 20;
 
   return (
     <>
       <div className="mt-auto space-y-2 border-t border-border pt-2">
         {error ? (
-          <p className="text-xs text-red-700" role="alert">
-            {error}
-          </p>
+          error.includes("Theke Credits") || error.includes("Not enough") ? (
+            <CreditsInsufficientAlert message={error} />
+          ) : (
+            <p className="text-xs text-red-700" role="alert">
+              {error}
+            </p>
+          )
         ) : null}
         <div className="flex gap-2">
           <button
@@ -74,14 +84,16 @@ export function WorkerCardActions({ worker, user, hired, contactsRemaining, onHi
           <button
             type="button"
             onClick={() => void handleContact()}
-            disabled={loading || contacted || limitReached}
+            disabled={loading || contacted}
             className="min-h-9 flex-1 rounded-full bg-brand-dark text-sm font-semibold text-white transition hover:opacity-95 disabled:cursor-not-allowed disabled:opacity-50"
           >
-            {loading ? "…" : contacted ? "Contacted" : "Contact"}
+            {loading ? "…" : contacted ? "Contacted" : `Contact · ₹${unlockCost}`}
           </button>
         </div>
-        {limitReached ? (
-          <p className="text-[11px] text-muted">Worker contact limit reached for your plan.</p>
+        {!contacted && walletBalanceInr != null ? (
+          <p className="text-[11px] text-muted">
+            Balance ₹{walletBalanceInr} · uses ₹{unlockCost} Theke Credits
+          </p>
         ) : null}
       </div>
 

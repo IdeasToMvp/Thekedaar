@@ -2,7 +2,10 @@ import { supabaseAdmin } from "./supabase.service";
 import { sendHireContactDetailsWhatsApp } from "../utils/contactDetails";
 import { getUserById } from "./user.service";
 import { formatPublicLocation } from "../utils/publicLocation";
-import { maxFeedWorkerContacts, normalizePlan, type BillingPlan } from "../utils/planLimits";
+import { normalizePlan, type BillingPlan } from "../utils/planLimits";
+import { PRICE_WORKER_UNLOCK_PAISE, paiseToInr } from "../utils/creditPricing";
+import { chargeWorkerUnlock } from "./recruiterBilling.service";
+import { getWalletBalancePaise } from "./wallet.service";
 
 export type WorkerUserJoin = {
   id: string;
@@ -193,7 +196,7 @@ export async function listEmployerContactedWorkerIds(employerId: string): Promis
 export async function recordEmployerWorkerHire(input: {
   employerId: string;
   workerId: string;
-}): Promise<{ recorded: boolean; used: number; max: number; worker: WorkerHireApiWorker }> {
+}): Promise<{ recorded: boolean; worker: WorkerHireApiWorker }> {
   if (input.employerId === input.workerId) {
     throw new Error("You cannot hire your own profile");
   }
@@ -204,17 +207,12 @@ export async function recordEmployerWorkerHire(input: {
   const employer = await getUserById(input.employerId);
   if (!employer) throw new Error("User not found");
   const plan = normalizePlan(employer.subscription_plan ?? undefined);
-  const max = maxFeedWorkerContacts(plan);
 
   const already = await hasEmployerHiredWorker(input.employerId, input.workerId);
   const usedBefore = await countEmployerWorkerContacts(input.employerId);
 
   if (!already) {
-    if (usedBefore >= max) {
-      throw new Error(
-        `Your ${plan} plan allows contacting up to ${max} different workers. Upgrade to Pro for 50.`,
-      );
-    }
+    await chargeWorkerUnlock(input.employerId, input.workerId);
     const sb = supabaseAdmin();
     const { error } = await sb.from("worker_feed_contacts").insert({
       employer_id: input.employerId,
@@ -247,8 +245,7 @@ export async function recordEmployerWorkerHire(input: {
     hiredAt: (contactRow as { created_at: string } | null)?.created_at ?? new Date().toISOString(),
   };
 
-  const used = already ? usedBefore : usedBefore + 1;
-  return { recorded: !already, used, max, worker };
+  return { recorded: !already, worker };
 }
 
 export type EmployerWorkerContactActivity = {
@@ -300,21 +297,20 @@ export async function listEmployerContactedWorkers(employerId: string, limit = 5
 
 export async function buildWorkerHireLimits(employerId: string): Promise<{
   plan: BillingPlan;
-  workerContacts: { used: number; max: number; remaining: number };
+  wallet: { balanceInr: number; unlockCostInr: number };
   contactedWorkerIds: string[];
 }> {
   const employer = await getUserById(employerId);
   if (!employer) throw new Error("User not found");
   const plan = normalizePlan(employer.subscription_plan ?? undefined);
-  const used = await countEmployerWorkerContacts(employerId);
-  const max = maxFeedWorkerContacts(plan);
   const contactedWorkerIds = await listEmployerContactedWorkerIds(employerId);
+  const balancePaise = await getWalletBalancePaise(employerId);
+
   return {
     plan,
-    workerContacts: {
-      used,
-      max,
-      remaining: Math.max(0, max - used),
+    wallet: {
+      balanceInr: paiseToInr(balancePaise),
+      unlockCostInr: paiseToInr(PRICE_WORKER_UNLOCK_PAISE),
     },
     contactedWorkerIds,
   };

@@ -26,6 +26,7 @@ export type WorkersFeedResponse = {
   hasMore: boolean;
   authenticated?: boolean;
   contactedWorkerIds?: string[];
+  limits?: WorkerHireLimits;
   error?: string;
   hint?: string;
 };
@@ -38,7 +39,7 @@ export type HiredWorker = FeedWorker & {
 
 export type WorkerHireLimits = {
   plan: string;
-  workerContacts: { used: number; max: number; remaining: number };
+  wallet: { balanceInr: number; unlockCostInr: number };
   contactedWorkerIds: string[];
 };
 
@@ -48,6 +49,7 @@ export type WorkerHireResponse = {
   worker?: HiredWorker;
   limits?: WorkerHireLimits;
   error?: string;
+  code?: string;
 };
 
 export type ContactedWorkersResponse = {

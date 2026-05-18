@@ -85,7 +85,7 @@ export async function getUserById(id: string) {
   return data as UserRow | null;
 }
 
-async function hasWorkerProfile(userId: string): Promise<boolean> {
+export async function hasWorkerProfile(userId: string): Promise<boolean> {
   const sb = supabaseAdmin();
   const { count, error } = await sb
     .from("worker_profiles")
@@ -95,7 +95,7 @@ async function hasWorkerProfile(userId: string): Promise<boolean> {
   return (count ?? 0) > 0;
 }
 
-async function hasRecruiterProfile(userId: string): Promise<boolean> {
+export async function hasRecruiterProfile(userId: string): Promise<boolean> {
   const sb = supabaseAdmin();
   const { count, error } = await sb
     .from("recruiter_profiles")

@@ -6,6 +6,7 @@ import authRoutes from "./routes/auth.routes";
 import jobsRoutes from "./routes/jobs.routes";
 import workersRoutes from "./routes/workers.routes";
 import applicationsRoutes from "./routes/applications.routes";
+import walletRoutes from "./routes/wallet.routes";
 
 dotenv.config();
 
@@ -25,6 +26,7 @@ app.use("/api/auth", authRoutes);
 app.use("/api/jobs", jobsRoutes);
 app.use("/api/workers", workersRoutes);
 app.use("/api/applications", applicationsRoutes);
+app.use("/api/wallet", walletRoutes);
 
 const PORT = process.env.PORT || 5000;
 

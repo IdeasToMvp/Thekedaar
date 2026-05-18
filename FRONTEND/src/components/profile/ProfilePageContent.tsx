@@ -325,6 +325,17 @@ export function ProfilePageContent() {
                   </ul>
                 </div>
 
+                {isEmployerAccount(user) ? (
+                  <Link
+                    href="/feed/wallet"
+                    className="block rounded-2xl border border-brand/25 bg-brand/5 p-4 text-sm transition hover:bg-brand/10"
+                  >
+                    <p className="font-bold text-foreground">Theke Credits</p>
+                    <p className="mt-1 text-xs text-muted">Manage balance for job posts and worker unlocks.</p>
+                    <span className="mt-2 inline-block text-xs font-semibold text-brand">Open wallet →</span>
+                  </Link>
+                ) : null}
+
                 <div className="rounded-2xl border border-border bg-slate-50/80 p-4 text-xs leading-relaxed text-muted">
                   {kind === "employer" ? (
                     <>

@@ -1013,6 +1013,7 @@ async function handleRecruiterFlow(input: {
     await sendWhatsAppText(
       phone,
       `Job posted ✅ — ${category} in ${formatPublicLocation(city, jobSector) || city || "your city"}\n` +
+        `You received ₹100 Theke Credits to get started.\n` +
         (timing ? `Timing: ${timing}\n` : "") +
         (reqBits.length ? `Requirements: ${reqBits.join(" · ")}\n` : "") +
         "\nManage / edit on website:\n" +

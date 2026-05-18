@@ -6,6 +6,7 @@ import { requireSession, type RequestWithSession } from "../middleware/requireSe
 import { upsertRecruiterProfile } from "../services/recruiter.service";
 import { updateUserProfile } from "../services/user.service";
 import { submitJobApplication } from "../services/applications.service";
+import { isWalletError } from "../errors/walletErrors";
 import {
   buildFeedLimits,
   createJob,
@@ -73,9 +74,15 @@ router.post("/", requireSession, async (req, res) => {
 
     return res.status(201).json({ ok: true, jobId: job.id });
   } catch (e: unknown) {
+    if (isWalletError(e)) {
+      return res.status(e.statusCode).json({
+        error: e.message,
+        code: e.code,
+        ...e.details,
+      });
+    }
     const msg = e instanceof Error ? e.message : "Could not create job";
-    const status = msg.includes("allows up to") || msg.includes("Upgrade") ? 403 : 400;
-    return res.status(status).json({ error: msg });
+    return res.status(400).json({ error: msg });
   }
 });
 

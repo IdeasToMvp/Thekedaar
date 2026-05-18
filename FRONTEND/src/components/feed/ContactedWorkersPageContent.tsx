@@ -62,9 +62,9 @@ export function ContactedWorkersPageContent() {
             <p className="mt-1 text-sm text-muted">
               Workers you contacted from Find Workers — phone and address unlock immediately.
             </p>
-            {limits ? (
+            {limits?.wallet ? (
               <p className="mt-2 text-xs text-muted">
-                {limits.workerContacts.used} / {limits.workerContacts.max} worker contacts used
+                Theke Credits balance: ₹{limits.wallet.balanceInr} · ₹{limits.wallet.unlockCostInr} per new contact
               </p>
             ) : null}
           </header>

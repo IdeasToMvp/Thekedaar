@@ -42,7 +42,19 @@ export function AppNavbar({ user, cityId, onCityChange }: Props) {
 
           <div className="ml-auto flex items-center gap-2 sm:gap-3">
             {employer ? (
-              <span className="hidden text-xs font-medium text-muted md:inline">{viewerModeLabel(user)}</span>
+              <>
+                <span className="hidden text-xs font-medium text-muted md:inline">{viewerModeLabel(user)}</span>
+                <Link
+                  href="/feed/wallet"
+                  className={`hidden rounded-full px-3 py-1.5 text-xs font-semibold shadow-sm shadow-brand/30 transition hover:opacity-95 lg:inline-flex ${
+                    pathname === "/feed/wallet"
+                      ? "bg-brand-dark text-white ring-2 ring-brand/30"
+                      : "bg-brand text-white"
+                  }`}
+                >
+                  Credits
+                </Link>
+              </>
             ) : null}
             <Link
               href="/feed/profile"

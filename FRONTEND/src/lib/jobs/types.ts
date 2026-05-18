@@ -35,6 +35,7 @@ export type FeedLimits = {
   feedContacts: { used: number; max: number; remaining: number };
   jobListings: { used: number; max: number; scope: "lifetime" | "month" } | null;
   contactedJobIds: string[];
+  wallet?: { balanceInr: number; unlockCostInr: number };
 };
 
 export type FeedResponse = {

@@ -1,13 +1,12 @@
 import { supabaseAdmin } from "./supabase.service";
 import { formatPublicLocation } from "../utils/publicLocation";
 import { getUserById } from "./user.service";
-import {
-  maxFeedJobContacts,
-  maxFreeTierJobListings,
-  maxProTierListingsPerMonth,
-  normalizePlan,
-  type BillingPlan,
-} from "../utils/planLimits";
+import { normalizePlan, type BillingPlan } from "../utils/planLimits";
+import { isUrgentUrgency } from "../utils/creditPricing";
+import { hasWorkerProfile } from "./user.service";
+import { chargeForNewJob } from "./recruiterBilling.service";
+import { getWalletBalancePaise } from "./wallet.service";
+import { paiseToInr, PRICE_WORKER_UNLOCK_PAISE } from "../utils/creditPricing";
 
 export type JobFeedRow = {
   id: string;
@@ -27,6 +26,7 @@ export type JobFeedRow = {
   required_documents: string[] | null;
   experience_years_required: number | null;
   created_at: string;
+  urgent_paid?: boolean | null;
 };
 
 export type JobFeedApiJob = {
@@ -99,7 +99,13 @@ export function mapJobToFeedApi(
     preferredGender: job.preferred_gender ?? null,
     requiredDocuments: job.required_documents ?? [],
     experienceYearsRequired: job.experience_years_required ?? null,
-    posterSubscription: { plan, features: plan === "pro" ? { boosted_listing: true } : {} },
+    posterSubscription: {
+      plan,
+      features:
+        plan === "pro" || job.urgent_paid || isUrgentUrgency(job.urgency)
+          ? { boosted_listing: true, urgent: Boolean(job.urgent_paid) }
+          : {},
+    },
     contactWaDigits: waDigitsFromPhone(recruiter.phone),
     ...(viewerId && job.recruiter_id === viewerId ? { isOwnListing: true } : {}),
   };
@@ -130,27 +136,6 @@ export async function countJobsThisCalendarMonth(recruiterId: string): Promise<n
   return count ?? 0;
 }
 
-export async function assertCanCreateJob(recruiterId: string): Promise<void> {
-  const user = await getUserById(recruiterId);
-  if (!user) throw new Error("User not found");
-  const plan = normalizePlan(user.subscription_plan ?? undefined);
-  const total = await countJobsForRecruiter(recruiterId);
-  if (plan !== "pro") {
-    if (total >= maxFreeTierJobListings()) {
-      throw new Error(
-        `Free plan allows up to ${maxFreeTierJobListings()} job listings. Upgrade to Pro for more.`,
-      );
-    }
-  } else {
-    const month = await countJobsThisCalendarMonth(recruiterId);
-    if (month >= maxProTierListingsPerMonth()) {
-      throw new Error(
-        `Pro plan allows up to ${maxProTierListingsPerMonth()} new listings per calendar month.`,
-      );
-    }
-  }
-}
-
 export async function createJob(input: {
   recruiterId: string;
   title: string;
@@ -169,7 +154,8 @@ export async function createJob(input: {
   requiredDocuments?: string[] | null;
   experienceYearsRequired?: number | null;
 }) {
-  await assertCanCreateJob(input.recruiterId);
+  const { urgentPaid } = await chargeForNewJob(input.recruiterId, input.urgency);
+
   const sb = supabaseAdmin();
   const { data, error } = await sb
     .from("jobs")
@@ -190,6 +176,7 @@ export async function createJob(input: {
       preferred_gender: input.preferredGender ?? null,
       required_documents: input.requiredDocuments ?? [],
       experience_years_required: input.experienceYearsRequired ?? null,
+      urgent_paid: urgentPaid,
     })
     .select("id")
     .single();
@@ -221,6 +208,17 @@ export async function updateJobForRecruiter(input: {
   if (!existing) throw new Error("Job not found");
   if (existing.recruiter_id !== input.recruiterId) {
     throw new Error("You can only edit your own listings");
+  }
+
+  if (
+    input.urgency !== undefined &&
+    isUrgentUrgency(input.urgency) &&
+    !existing.urgent_paid &&
+    !isUrgentUrgency(existing.urgency)
+  ) {
+    throw new Error(
+      "Urgent badge is paid when you post a new job. Choose Flexible timing or post a new listing with Immediate.",
+    );
   }
 
   const sb = supabaseAdmin();
@@ -410,20 +408,18 @@ export async function recordFeedJobContact(input: {
 }): Promise<{ recorded: boolean; used: number; max: number }> {
   const user = await getUserById(input.userId);
   if (!user) throw new Error("User not found");
-  const plan = normalizePlan(user.subscription_plan ?? undefined);
-  const max = maxFeedJobContacts(plan);
 
   const already = await hasUserContactedJob(input.userId, input.jobId);
+  const used = await countUserFeedContacts(input.userId);
+  const workerFree = await hasWorkerProfile(input.userId);
+  const max = workerFree ? 999_999 : 0;
+
   if (already) {
-    const used = await countUserFeedContacts(input.userId);
     return { recorded: false, used, max };
   }
 
-  const usedBefore = await countUserFeedContacts(input.userId);
-  if (usedBefore >= max) {
-    throw new Error(
-      `Your ${plan} plan allows contacting up to ${max} different jobs. Upgrade to Pro for 50.`,
-    );
+  if (!workerFree) {
+    throw new Error("Complete your worker profile to apply for jobs.");
   }
 
   const sb = supabaseAdmin();
@@ -433,8 +429,7 @@ export async function recordFeedJobContact(input: {
     action: input.action,
   });
   if (error) throw error;
-  const used = usedBefore + 1;
-  return { recorded: true, used, max };
+  return { recorded: true, used: used + 1, max };
 }
 
 export type FeedLimitsPayload = {
@@ -442,6 +437,7 @@ export type FeedLimitsPayload = {
   feedContacts: { used: number; max: number; remaining: number };
   jobListings: { used: number; max: number; scope: "lifetime" | "month" } | null;
   contactedJobIds: string[];
+  wallet?: { balanceInr: number; unlockCostInr: number };
 };
 
 export async function listUserContactedJobIds(userId: string): Promise<string[]> {
@@ -528,33 +524,22 @@ export async function buildFeedLimits(userId: string): Promise<FeedLimitsPayload
   if (!user) throw new Error("User not found");
   const plan = normalizePlan(user.subscription_plan ?? undefined);
   const usedContacts = await countUserFeedContacts(userId);
-  const maxContacts = maxFeedJobContacts(plan);
+  const workerFree = await hasWorkerProfile(userId);
+  const maxContacts = workerFree ? 999_999 : 0;
   const contactedJobIds = await listUserContactedJobIds(userId);
 
-  let jobListings: FeedLimitsPayload["jobListings"] = null;
-  const sb = supabaseAdmin();
-  const { count: rpCount, error: rpErr } = await sb
+  let wallet: FeedLimitsPayload["wallet"];
+  const { count: rpCount, error: rpErr } = await supabaseAdmin()
     .from("recruiter_profiles")
     .select("user_id", { count: "exact", head: true })
     .eq("user_id", userId);
   if (rpErr) throw rpErr;
-  const isRecruiter = (rpCount ?? 0) > 0;
-  if (isRecruiter) {
-    if (plan === "pro") {
-      const monthUsed = await countJobsThisCalendarMonth(userId);
-      jobListings = {
-        used: monthUsed,
-        max: maxProTierListingsPerMonth(),
-        scope: "month",
-      };
-    } else {
-      const total = await countJobsForRecruiter(userId);
-      jobListings = {
-        used: total,
-        max: maxFreeTierJobListings(),
-        scope: "lifetime",
-      };
-    }
+  if ((rpCount ?? 0) > 0) {
+    const balancePaise = await getWalletBalancePaise(userId);
+    wallet = {
+      balanceInr: paiseToInr(balancePaise),
+      unlockCostInr: paiseToInr(PRICE_WORKER_UNLOCK_PAISE),
+    };
   }
 
   return {
@@ -562,9 +547,10 @@ export async function buildFeedLimits(userId: string): Promise<FeedLimitsPayload
     feedContacts: {
       used: usedContacts,
       max: maxContacts,
-      remaining: Math.max(0, maxContacts - usedContacts),
+      remaining: workerFree ? 999_999 : 0,
     },
-    jobListings,
+    jobListings: null,
     contactedJobIds,
+    wallet,
   };
 }

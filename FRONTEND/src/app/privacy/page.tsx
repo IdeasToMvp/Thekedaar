@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { SiteFooter } from "@/components/landing/SiteFooter";
 import { SiteHeader } from "@/components/landing/SiteHeader";
+import { ThekeCreditsTerms } from "@/components/credits/ThekeCreditsTerms";
 import { LANDING_CONTACT, LANDING_PRIVACY_SUMMARY } from "@/lib/landing/content";
 
 export const metadata = {
@@ -43,6 +44,18 @@ export default function PrivacyPage() {
               To match workers and employers, show listings, process applications, send login links, and improve the
               service. We do not sell your personal data.
             </p>
+          </section>
+
+          <section>
+            <h2 className="text-lg font-semibold text-foreground">Theke Credits (employers)</h2>
+            <p className="mt-2">
+              Employers may add prepaid balance called Theke Credits to pay for digital hiring features on the
+              platform (for example, posting jobs beyond free quota or unlocking worker contact). Payment partners
+              process top-ups; we record your balance and usage in our systems.
+            </p>
+            <div className="mt-4 rounded-xl border border-border bg-slate-50/80 p-4">
+              <ThekeCreditsTerms />
+            </div>
           </section>
 
           <section>

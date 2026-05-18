@@ -1,6 +1,9 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
+import { CreditsInsufficientAlert } from "@/components/credits/CreditsInsufficientAlert";
+import { estimateNewJobCostInr } from "@/lib/credits/pricing";
+import { isInsufficientCredits, type RecruiterBilling, type WalletResponse } from "@/lib/credits/types";
 import type { FeedJob } from "@/lib/jobs/types";
 import { ACTIVE_MARKET, cityToApiParam, getLaunchRole } from "@/lib/launch";
 import { skillLabelToRoleId } from "@/lib/launch/skillIds";
@@ -93,13 +96,29 @@ export function JobListingModal({ open, cityId, job, onClose, onSuccess }: Props
   const [form, setForm] = useState<JobListingFormValues>(() => emptyForm(cityId));
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [billing, setBilling] = useState<RecruiterBilling | null>(null);
 
   useEffect(() => {
     if (!open) return;
     setForm(job ? formFromJob(job, cityId) : emptyForm(cityId));
     setError(null);
     setSubmitting(false);
+    if (!job) {
+      void fetch("/api/wallet")
+        .then((r) => r.json())
+        .then((data: WalletResponse) => {
+          if (data.billing) setBilling(data.billing);
+        })
+        .catch(() => setBilling(null));
+    } else {
+      setBilling(null);
+    }
   }, [open, job, cityId]);
+
+  const postCost = useMemo(() => {
+    if (isEdit) return null;
+    return estimateNewJobCostInr(form.urgency);
+  }, [isEdit, form.urgency]);
 
   useEffect(() => {
     if (!open) return;
@@ -186,8 +205,11 @@ export function JobListingModal({ open, cityId, job, onClose, onSuccess }: Props
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload),
       });
-      const data = (await resp.json()) as { error?: string };
+      const data = (await resp.json()) as { error?: string; code?: string };
       if (!resp.ok) {
+        if (isInsufficientCredits(data)) {
+          throw new Error(data.error || "Not enough Theke Credits");
+        }
         throw new Error(data.error || (isEdit ? "Could not save listing" : "Could not post job"));
       }
       onSuccess();
@@ -379,10 +401,32 @@ export function JobListingModal({ open, cityId, job, onClose, onSuccess }: Props
               {URGENCY_OPTIONS.map((o) => (
                 <option key={o.value} value={o.value}>
                   {o.label}
+                  {o.value === "Immediate" ? " (+ urgent badge)" : ""}
                 </option>
               ))}
             </select>
+            {!isEdit && form.urgency === "Immediate" ? (
+              <p className="mt-1 text-xs text-muted">Immediate posts include a paid urgent badge on the feed.</p>
+            ) : null}
           </label>
+
+          {!isEdit && postCost ? (
+            <div className="mt-4 rounded-xl border border-brand/20 bg-brand/5 px-3 py-2 text-sm text-foreground">
+              <p className="font-medium">Cost from Theke Credits</p>
+              <p className="mt-0.5 text-xs text-muted">
+                {postCost.listing > 0 ? `Listing ₹${postCost.listing}` : null}
+                {postCost.listing > 0 && postCost.urgent > 0 ? " + " : null}
+                {postCost.urgent > 0 ? `Urgent ₹${postCost.urgent}` : null}
+                {" "}= ₹{postCost.total} total
+              </p>
+              {billing ? (
+                <p className="mt-1 text-xs text-muted">
+                  Balance: ₹{billing.balanceInr}
+                  {postCost.total > billing.balanceInr ? " — add credits to continue" : ""}
+                </p>
+              ) : null}
+            </div>
+          ) : null}
 
           <label className="mt-4 block text-sm font-medium text-foreground">
             Description <span className="font-normal text-muted">(optional)</span>
@@ -396,9 +440,13 @@ export function JobListingModal({ open, cityId, job, onClose, onSuccess }: Props
           </label>
 
           {error ? (
-            <p className="mt-4 rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-800" role="alert">
-              {error}
-            </p>
+            error.includes("Theke Credits") || error.includes("Not enough") ? (
+              <CreditsInsufficientAlert message={error} className="mt-4" />
+            ) : (
+              <p className="mt-4 rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-800" role="alert">
+                {error}
+              </p>
+            )
           ) : null}
         </div>
 
@@ -416,7 +464,13 @@ export function JobListingModal({ open, cityId, job, onClose, onSuccess }: Props
             disabled={submitting}
             className="min-h-11 flex-1 rounded-full bg-brand-dark text-sm font-semibold text-white disabled:opacity-50"
           >
-            {submitting ? "Saving…" : isEdit ? "Save changes" : "Post job"}
+            {submitting
+              ? "Saving…"
+              : isEdit
+                ? "Save changes"
+                : postCost
+                  ? `Post · ₹${postCost.total}`
+                  : "Post job"}
           </button>
         </div>
       </form>

@@ -1,4 +1,5 @@
 import { supabaseAdmin } from "./supabase.service";
+import { grantOnboardingCredits } from "./wallet.service";
 
 export type RecruiterProfileRow = {
   user_id: string;
@@ -14,6 +15,14 @@ export async function upsertRecruiterProfile(input: {
   companyName?: string | null;
 }) {
   const sb = supabaseAdmin();
+  const { data: existing, error: existErr } = await sb
+    .from("recruiter_profiles")
+    .select("user_id")
+    .eq("user_id", input.userId)
+    .maybeSingle();
+  if (existErr) throw existErr;
+  const isNewProfile = !existing;
+
   const { error } = await sb.from("recruiter_profiles").upsert(
     {
       user_id: input.userId,
@@ -24,4 +33,8 @@ export async function upsertRecruiterProfile(input: {
     { onConflict: "user_id" },
   );
   if (error) throw error;
+
+  if (isNewProfile) {
+    await grantOnboardingCredits(input.userId);
+  }
 }
