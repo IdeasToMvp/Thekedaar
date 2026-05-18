@@ -2,6 +2,7 @@ import type { Request, Response } from "express";
 import { z } from "zod";
 import type { RequestWithSession } from "../middleware/requireSession";
 import { getUserCapabilities } from "../services/user.service";
+import { formatSupabaseError } from "../utils/feedSearch";
 import { buildWorkerHireLimits, countWorkersForFeed, listWorkersForFeed } from "../services/workers.service";
 
 const WorkersFeedQuerySchema = z.object({
@@ -9,6 +10,8 @@ const WorkersFeedQuerySchema = z.object({
   limit: z.coerce.number().int().min(1).max(50).optional().default(24),
   city: z.string().max(120).optional().default(""),
   role: z.string().max(120).optional().default(""),
+  sector: z.string().max(120).optional().default(""),
+  q: z.string().max(80).optional().default(""),
   sort: z.enum(["newest", "salary_high", "salary_low"]).optional().default("newest"),
 });
 
@@ -34,16 +37,20 @@ export async function handleWorkersFeedGet(req: Request, res: Response): Promise
     res.status(400).json({ error: "Invalid query" });
     return;
   }
-  const { offset, limit, city, role, sort } = parsed.data;
+  const { offset, limit, city, role, sector, q, sort } = parsed.data;
 
   try {
     const total = await countWorkersForFeed({
       city: city || undefined,
       role: role || undefined,
+      sector: sector || undefined,
+      q: q || undefined,
     });
     const { workers } = await listWorkersForFeed({
       city: city || undefined,
       role: role || undefined,
+      sector: sector || undefined,
+      q: q || undefined,
       sort,
       offset,
       limit,
@@ -73,7 +80,6 @@ export async function handleWorkersFeedGet(req: Request, res: Response): Promise
       limits,
     });
   } catch (e: unknown) {
-    const msg = e instanceof Error ? e.message : "Workers feed error";
-    res.status(500).json({ error: msg });
+    res.status(500).json({ error: formatSupabaseError(e) });
   }
 }

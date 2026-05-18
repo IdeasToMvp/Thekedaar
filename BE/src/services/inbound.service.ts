@@ -50,16 +50,11 @@ import {
   skillsMenuPrompt,
   urgencyMenuPrompt,
   workShiftPrompt,
-  cityMenuPrompt,
   fullAddressPrompt,
   WA_AVAILABILITY_OPTIONS,
   WA_URGENCY_OPTIONS,
 } from "../utils/whatsappFlow";
-import {
-  GURUGRAM_CITY_LABEL,
-  gurugramCityAccepted,
-  localityMenuPrompt,
-} from "../data/gurugramLocalities";
+import { cityMenuPrompt, localityMenuPrompt, parseCityMenuChoice } from "../data/cityLocalities";
 import { formatPublicLocation, resolveLocationFromInputs } from "../utils/publicLocation";
 
 type FlowRole = "worker" | "recruiter";
@@ -91,8 +86,9 @@ function localityPage(meta: Record<string, unknown>): number {
 }
 
 function storeResolvedLocation(meta: Record<string, unknown>, areaRaw: string, fullAddressInput: string) {
+  const cityInput = String(meta.city ?? meta.launchCityId ?? "Gurugram");
   const resolved = resolveLocationFromInputs({
-    cityInput: GURUGRAM_CITY_LABEL,
+    cityInput,
     areaInput: areaRaw,
     fullAddressInput,
   });
@@ -172,7 +168,7 @@ function promptForStep(role: FlowRole, step: ConversationStep, meta: Record<stri
       case "WORKER_CITY":
         return cityMenuPrompt();
       case "WORKER_SECTOR":
-        return localityMenuPrompt(localityPage(meta));
+        return localityMenuPrompt(String(meta.launchCityId ?? meta.city ?? "gurugram"), localityPage(meta));
       case "WORKER_FULL_ADDRESS":
         return fullAddressPrompt();
       case "WORKER_SKILLS":
@@ -204,7 +200,7 @@ function promptForStep(role: FlowRole, step: ConversationStep, meta: Record<stri
     case "RECRUITER_CITY":
       return cityMenuPrompt();
     case "RECRUITER_SECTOR":
-      return localityMenuPrompt(localityPage(meta));
+      return localityMenuPrompt(String(meta.launchCityId ?? meta.city ?? "gurugram"), localityPage(meta));
     case "RECRUITER_FULL_ADDRESS":
       return fullAddressPrompt();
     case "RECRUITER_SALARY":
@@ -535,11 +531,13 @@ async function handleWorkerFlow(input: {
   }
 
   if (step === "WORKER_CITY") {
-    if (!gurugramCityAccepted(text)) {
-      await sendWhatsAppText(phone, "Abhi sirf Gurugram. Reply *1*.\n\n" + cityMenuPrompt());
+    const city = parseCityMenuChoice(text);
+    if (!city) {
+      await sendWhatsAppText(phone, "Sheher samajh nahi aaya. Number se chuniye:\n\n" + cityMenuPrompt());
       return;
     }
-    meta.city = GURUGRAM_CITY_LABEL;
+    meta.launchCityId = city.id;
+    meta.city = city.apiValue;
     meta.localityPage = 0;
     await setConversationState(phone, "WORKER_SECTOR", historyPush(meta, step));
     await sendWhatsAppText(phone, promptForStep("worker", "WORKER_SECTOR", meta));
@@ -550,12 +548,12 @@ async function handleWorkerFlow(input: {
     if (isMoreCommand(text)) {
       meta.localityPage = localityPage(meta) + 1;
       await setConversationState(phone, "WORKER_SECTOR", meta);
-      await sendWhatsAppText(phone, localityMenuPrompt(localityPage(meta)));
+      await sendWhatsAppText(phone, localityMenuPrompt(String(meta.launchCityId ?? meta.city ?? "gurugram"), localityPage(meta)));
       return;
     }
     const areaRaw = text.trim();
     if (areaRaw.length < 2) {
-      await sendWhatsAppText(phone, "Area chuniye (number) ya naam likho.\n\n" + localityMenuPrompt(localityPage(meta)));
+      await sendWhatsAppText(phone, "Area chuniye (number) ya naam likho.\n\n" + localityMenuPrompt(String(meta.launchCityId ?? meta.city ?? "gurugram"), localityPage(meta)));
       return;
     }
     meta.areaRaw = areaRaw;
@@ -708,7 +706,7 @@ async function finishWorkerOnboarding(phone: string, meta: Record<string, unknow
   const user = await upsertIdentityByPhone({
     phone,
     name: String(meta.name ?? "").trim() || null,
-    city: String(meta.city ?? GURUGRAM_CITY_LABEL).trim() || GURUGRAM_CITY_LABEL,
+    city: String(meta.city ?? "Gurugram").trim() || "Gurugram",
     sector: typeof meta.sector === "string" ? meta.sector : null,
     fullAddress: typeof meta.fullAddress === "string" ? meta.fullAddress : null,
     currentMode: "worker",
@@ -744,7 +742,7 @@ async function finishWorkerOnboarding(phone: string, meta: Record<string, unknow
   const gender = typeof meta.gender === "string" ? genderLabel(meta.gender) : "";
   const aadhaar =
     typeof meta.hasAadhaar === "boolean" ? (meta.hasAadhaar ? "Aadhaar: yes" : "Aadhaar: no") : "";
-  const area = formatPublicLocation(String(meta.city ?? GURUGRAM_CITY_LABEL), typeof meta.sector === "string" ? meta.sector : null);
+  const area = formatPublicLocation(String(meta.city ?? "Gurugram"), typeof meta.sector === "string" ? meta.sector : null);
 
   await sendWhatsAppText(
     phone,
@@ -801,11 +799,13 @@ async function handleRecruiterFlow(input: {
   }
 
   if (step === "RECRUITER_CITY") {
-    if (!gurugramCityAccepted(text)) {
-      await sendWhatsAppText(phone, "Abhi sirf Gurugram. Reply *1*.\n\n" + cityMenuPrompt());
+    const city = parseCityMenuChoice(text);
+    if (!city) {
+      await sendWhatsAppText(phone, "Sheher samajh nahi aaya. Number se chuniye:\n\n" + cityMenuPrompt());
       return;
     }
-    meta.city = GURUGRAM_CITY_LABEL;
+    meta.launchCityId = city.id;
+    meta.city = city.apiValue;
     meta.localityPage = 0;
     await setConversationState(phone, "RECRUITER_SECTOR", historyPush(meta, step));
     await sendWhatsAppText(phone, promptForStep("recruiter", "RECRUITER_SECTOR", meta));
@@ -816,12 +816,12 @@ async function handleRecruiterFlow(input: {
     if (isMoreCommand(text)) {
       meta.localityPage = localityPage(meta) + 1;
       await setConversationState(phone, "RECRUITER_SECTOR", meta);
-      await sendWhatsAppText(phone, localityMenuPrompt(localityPage(meta)));
+      await sendWhatsAppText(phone, localityMenuPrompt(String(meta.launchCityId ?? meta.city ?? "gurugram"), localityPage(meta)));
       return;
     }
     const areaRaw = text.trim();
     if (areaRaw.length < 2) {
-      await sendWhatsAppText(phone, "Area chuniye (number) ya naam likho.\n\n" + localityMenuPrompt(localityPage(meta)));
+      await sendWhatsAppText(phone, "Area chuniye (number) ya naam likho.\n\n" + localityMenuPrompt(String(meta.launchCityId ?? meta.city ?? "gurugram"), localityPage(meta)));
       return;
     }
     meta.areaRaw = areaRaw;
@@ -987,7 +987,7 @@ async function handleRecruiterFlow(input: {
 
     const user = await upsertIdentityByPhone({
       phone,
-      city: city || GURUGRAM_CITY_LABEL,
+      city: city || "Gurugram",
       sector: jobSector,
       fullAddress: jobFullAddress,
       currentMode: "recruiter",
@@ -1008,7 +1008,7 @@ async function handleRecruiterFlow(input: {
     await createJob({
       recruiterId: user.id,
       title: String(meta.jobTitle ?? category).trim() || category,
-      city: city || GURUGRAM_CITY_LABEL,
+      city: city || "Gurugram",
       sector: jobSector,
       fullAddress: jobFullAddress,
       salary: typeof meta.salary === "number" ? meta.salary : null,

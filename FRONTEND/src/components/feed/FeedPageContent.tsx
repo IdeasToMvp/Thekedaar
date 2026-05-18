@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { useDebouncedValue } from "@/lib/useDebouncedValue";
 import Link from "next/link";
 import type { ApplicationStatus, FeedJob, FeedResponse } from "@/lib/jobs/types";
 import type { FeedWorker, HiredWorker, WorkerHireLimits, WorkersFeedResponse } from "@/lib/workers/types";
@@ -11,6 +12,7 @@ import {
   cityToApiParam,
   filterJobsBySalary,
   filterJobsToLaunchMarket,
+  getLaunchCity,
   launchHighlights,
   roleToApiParam,
   type SalaryBandId,
@@ -53,7 +55,15 @@ export function FeedPageContent() {
 
   const [roleId, setRoleId] = useState("");
   const [salaryBand, setSalaryBand] = useState<SalaryBandId>("all");
+  const [sector, setSector] = useState("");
+  const [searchQuery, setSearchQuery] = useState("");
+  const debouncedQ = useDebouncedValue(searchQuery.trim(), 400);
   const [sort] = useState<SortOption>("newest");
+  const searchPending = searchQuery.trim() !== debouncedQ;
+
+  useEffect(() => {
+    setSector("");
+  }, [cityId]);
 
   const fetchJobsFeed = useCallback(
     async (nextOffset: number, append: boolean) => {
@@ -66,6 +76,8 @@ export function FeedPageContent() {
       const apiCategory = roleToApiParam(roleId);
       if (apiCity) params.set("city", apiCity);
       if (apiCategory) params.set("category", apiCategory);
+      if (sector) params.set("sector", sector);
+      if (debouncedQ) params.set("q", debouncedQ);
 
       const resp = await fetch(`/api/feed?${params}`);
       const data = (await resp.json()) as FeedResponse;
@@ -77,7 +89,7 @@ export function FeedPageContent() {
       setJobsOffset(data.offset + data.jobs.length);
       setJobs((prev) => (append ? [...prev, ...scoped] : scoped));
     },
-    [cityId, roleId, sort],
+    [cityId, roleId, sector, debouncedQ, sort],
   );
 
   const fetchWorkersFeed = useCallback(
@@ -91,6 +103,8 @@ export function FeedPageContent() {
       const apiRole = roleToApiParam(roleId);
       if (apiCity) params.set("city", apiCity);
       if (apiRole) params.set("role", apiRole);
+      if (sector) params.set("sector", sector);
+      if (debouncedQ) params.set("q", debouncedQ);
 
       const resp = await fetch(`/api/workers/feed?${params}`);
       const data = (await resp.json()) as WorkersFeedResponse;
@@ -111,7 +125,7 @@ export function FeedPageContent() {
         }
       }
     },
-    [cityId, roleId, sort],
+    [cityId, roleId, sector, debouncedQ, sort],
   );
 
   const handleWorkerHired = useCallback((hired: HiredWorker, limits?: WorkerHireLimits) => {
@@ -197,12 +211,17 @@ export function FeedPageContent() {
   function clearFilters() {
     setRoleId("");
     setSalaryBand("all");
+    setSector("");
+    setSearchQuery("");
   }
 
-  const hasActiveFilters = Boolean(roleId || salaryBand !== "all");
+  const hasActiveFilters = Boolean(roleId || salaryBand !== "all" || sector || searchQuery.trim());
   const loading = worker ? jobsLoading : workersLoading;
   const error = worker ? jobsError : workersError;
-  const { displayName } = ACTIVE_MARKET;
+  const cityLabel = getLaunchCity(cityId)?.label ?? ACTIVE_MARKET.displayName;
+  const searchPlaceholder = worker
+    ? "Search jobs by title, role, area…"
+    : "Search workers by name, role, area…";
   const showShell = userLoading && !user;
 
   if (user && !employer && !worker) {
@@ -228,21 +247,33 @@ export function FeedPageContent() {
       <div className="mx-auto flex min-h-0 w-full max-w-[1400px] flex-1">
         <div className="hidden w-56 shrink-0 overflow-y-auto overscroll-contain border-r border-border xl:w-60 lg:block">
           <FeedSidebar
+            cityId={cityId}
             roleId={roleId}
             salaryBand={salaryBand}
+            sector={sector}
+            searchQuery={searchQuery}
             onRoleChange={setRoleId}
             onSalaryBandChange={setSalaryBand}
+            onSectorChange={setSector}
+            onSearchChange={setSearchQuery}
             onClear={clearFilters}
+            searchPlaceholder={searchPlaceholder}
           />
         </div>
 
         <main className="flex min-h-0 min-w-0 flex-1 flex-col">
           <div className="shrink-0 border-b border-border px-4 py-4 sm:px-6 lg:hidden">
             <FeedMobileFilters
+              cityId={cityId}
               roleId={roleId}
               salaryBand={salaryBand}
+              sector={sector}
+              searchQuery={searchQuery}
               onRoleChange={setRoleId}
               onSalaryBandChange={setSalaryBand}
+              onSectorChange={setSector}
+              onSearchChange={setSearchQuery}
+              searchPlaceholder={searchPlaceholder}
             />
             {hasActiveFilters ? (
               <button type="button" onClick={clearFilters} className="mt-3 text-sm font-medium text-brand hover:underline">
@@ -254,11 +285,11 @@ export function FeedPageContent() {
           <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-4 py-6 pb-24 sm:px-6">
             <header>
               <h1 className="font-serif text-2xl font-bold tracking-tight text-foreground sm:text-3xl">
-                {worker ? `Jobs in ${displayName}` : `Workers in ${displayName}`}
+                {worker ? `Jobs in ${cityLabel}` : `Workers in ${cityLabel}`}
               </h1>
               <p className="mt-1 text-sm text-muted">
-                {loading ? (
-                  "Loading…"
+                {loading || searchPending ? (
+                  searchPending ? "Searching…" : "Loading…"
                 ) : worker ? (
                   <>
                     <span className="font-medium text-foreground">{jobsTotal}</span> open roles
@@ -284,7 +315,7 @@ export function FeedPageContent() {
                 {jobsLoading ? (
                   <CardSkeletonGrid />
                 ) : salaryFilteredJobs.length === 0 && !jobsError ? (
-                  <EmptyState message={`No jobs match these filters in ${displayName}.`} />
+                  <EmptyState message={`No jobs match these filters in ${cityLabel}.`} />
                 ) : !user ? (
                   <CardSkeletonGrid />
                 ) : (
@@ -319,7 +350,7 @@ export function FeedPageContent() {
             ) : workersLoading ? (
               <CardSkeletonGrid />
             ) : salaryFilteredWorkers.length === 0 && !workersError ? (
-              <EmptyState message={`No workers match these filters in ${displayName}.`} />
+              <EmptyState message={`No workers match these filters in ${cityLabel}.`} />
             ) : !user ? (
               <CardSkeletonGrid />
             ) : (

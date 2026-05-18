@@ -1,4 +1,10 @@
-import { assertUserCanMutate, isPubliclyVisibleAccount } from "./accountLifecycle.service";
+import {
+  buildOrIlikeFilter,
+  formatSupabaseError,
+  hasSearchQuery,
+  ilikePattern,
+} from "../utils/feedSearch";
+import { assertUserCanMutate } from "./accountLifecycle.service";
 import { supabaseAdmin } from "./supabase.service";
 import { sendHireContactDetailsWhatsApp } from "../utils/contactDetails";
 import { getUserById } from "./user.service";
@@ -98,37 +104,110 @@ export function mapWorkerToFeedApi(row: WorkerFeedRowRaw, viewerId?: string): Wo
   };
 }
 
-export async function countWorkersForFeed(input: { city?: string; role?: string }): Promise<number> {
+type WorkerFeedFilters = {
+  city?: string;
+  role?: string;
+  sector?: string;
+};
+
+const SEARCH_MATCH_LIMIT = 500;
+
+/** Union of user_ids matching job role OR user name/area (cannot OR across tables in one PostgREST filter). */
+async function resolveWorkerFeedSearchUserIds(
+  sb: ReturnType<typeof supabaseAdmin>,
+  input: WorkerFeedFilters & { q: string },
+): Promise<string[]> {
+  const pattern = ilikePattern(input.q);
+  if (!pattern) return [];
+
+  const ids = new Set<string>();
+
+  let qRole = sb
+    .from("worker_profiles")
+    .select("user_id, users!inner(id)")
+    .eq("users.account_status", "active");
+  if (input.city) qRole = qRole.ilike("users.city", input.city);
+  if (input.role) qRole = qRole.ilike("role", input.role);
+  if (input.sector) qRole = qRole.ilike("users.sector", ilikePattern(input.sector));
+  qRole = qRole.ilike("role", pattern).limit(SEARCH_MATCH_LIMIT);
+
+  const byRole = await qRole;
+  if (byRole.error) throw new Error(formatSupabaseError(byRole.error));
+  for (const row of byRole.data ?? []) {
+    ids.add(row.user_id as string);
+  }
+
+  const userOr = buildOrIlikeFilter(["name", "sector"], input.q);
+  if (userOr) {
+    let qUser = sb
+      .from("worker_profiles")
+      .select("user_id, users!inner(id)")
+      .eq("users.account_status", "active");
+    if (input.city) qUser = qUser.ilike("users.city", input.city);
+    if (input.role) qUser = qUser.ilike("role", input.role);
+    if (input.sector) qUser = qUser.ilike("users.sector", ilikePattern(input.sector));
+    qUser = qUser.or(userOr, { referencedTable: "users" }).limit(SEARCH_MATCH_LIMIT);
+
+    const byUser = await qUser;
+    if (byUser.error) throw new Error(formatSupabaseError(byUser.error));
+    for (const row of byUser.data ?? []) {
+      ids.add(row.user_id as string);
+    }
+  }
+
+  return [...ids];
+}
+
+export async function countWorkersForFeed(input: WorkerFeedFilters & { q?: string }): Promise<number> {
   const sb = supabaseAdmin();
+
+  if (hasSearchQuery(input.q)) {
+    const ids = await resolveWorkerFeedSearchUserIds(sb, { ...input, q: input.q! });
+    return ids.length;
+  }
+
   let q = sb
     .from("worker_profiles")
     .select("user_id, users!inner(id)", { count: "exact", head: true })
     .eq("users.account_status", "active");
   if (input.city) q = q.ilike("users.city", input.city);
   if (input.role) q = q.ilike("role", input.role);
+  if (input.sector) q = q.ilike("users.sector", ilikePattern(input.sector));
   const { count, error } = await q;
-  if (error) throw error;
+  if (error) throw new Error(formatSupabaseError(error));
   return count ?? 0;
 }
 
 export async function listWorkersForFeed(input: {
   city?: string;
   role?: string;
+  sector?: string;
+  q?: string;
   sort: "newest" | "salary_high" | "salary_low";
   offset: number;
   limit: number;
   viewerId?: string;
 }): Promise<{ workers: WorkerFeedApiWorker[] }> {
   const sb = supabaseAdmin();
-  let q = sb
-    .from("worker_profiles")
-    .select(
-      "user_id, role, skills, age, gender, has_aadhaar, experience_years, expected_salary, availability, users!inner(id, name, city, sector, phone, created_at, account_status)",
-    )
-    .eq("users.account_status", "active");
+  const selectCols =
+    "user_id, role, skills, age, gender, has_aadhaar, experience_years, expected_salary, availability, users!inner(id, name, city, sector, phone, created_at, account_status)";
+
+  let q = sb.from("worker_profiles").select(selectCols).eq("users.account_status", "active");
 
   if (input.city) q = q.ilike("users.city", input.city);
   if (input.role) q = q.ilike("role", input.role);
+  if (input.sector) q = q.ilike("users.sector", ilikePattern(input.sector));
+
+  if (hasSearchQuery(input.q)) {
+    const ids = await resolveWorkerFeedSearchUserIds(sb, {
+      city: input.city,
+      role: input.role,
+      sector: input.sector,
+      q: input.q!,
+    });
+    if (ids.length === 0) return { workers: [] };
+    q = q.in("user_id", ids);
+  }
 
   if (input.sort === "newest") q = q.order("updated_at", { ascending: false });
   else if (input.sort === "salary_high") {
@@ -142,7 +221,7 @@ export async function listWorkersForFeed(input: {
   q = q.range(from, to);
 
   const { data, error } = await q;
-  if (error) throw error;
+  if (error) throw new Error(formatSupabaseError(error));
 
   const rows = (data ?? []) as WorkerFeedRowRaw[];
   return {

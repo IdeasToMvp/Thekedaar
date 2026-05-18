@@ -1,8 +1,9 @@
 "use client";
 
-import { GURUGRAM_LOCALITIES } from "@/lib/launch/gurugramLocalities";
+import { getCityEntry, getLocalitiesForCity } from "@/lib/launch/cityLocalities";
 
 type Props = {
+  cityId: string;
   value: string;
   onChange: (value: string) => void;
   label?: string;
@@ -12,13 +13,18 @@ type Props = {
 };
 
 export function LocalitySelect({
+  cityId,
   value,
   onChange,
   label = "Area / sector",
   required = false,
   className = "",
-  hint = "Pick a known area in Gurugram. Exact address is not shown on the public feed.",
+  hint,
 }: Props) {
+  const cityLabel = getCityEntry(cityId)?.label ?? "your city";
+  const localities = getLocalitiesForCity(cityId);
+  const defaultHint = `Pick a known area in ${cityLabel}. Exact address is not shown on the public feed.`;
+
   return (
     <label className={`block ${className}`}>
       <span className="text-sm font-medium text-foreground">
@@ -32,13 +38,13 @@ export function LocalitySelect({
         className="mt-1.5 w-full rounded-xl border border-border bg-background px-3 py-2.5 text-sm"
       >
         <option value="">Select area</option>
-        {GURUGRAM_LOCALITIES.map((loc) => (
+        {localities.map((loc) => (
           <option key={loc} value={loc}>
             {loc}
           </option>
         ))}
       </select>
-      {hint ? <p className="mt-1 text-xs text-muted">{hint}</p> : null}
+      {(hint ?? defaultHint) ? <p className="mt-1 text-xs text-muted">{hint ?? defaultHint}</p> : null}
     </label>
   );
 }

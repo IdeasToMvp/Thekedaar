@@ -17,6 +17,8 @@ const FeedQuerySchema = z.object({
   limit: z.coerce.number().int().min(1).max(50).optional().default(8),
   city: z.string().max(120).optional().default(""),
   category: z.string().max(120).optional().default(""),
+  sector: z.string().max(120).optional().default(""),
+  q: z.string().max(80).optional().default(""),
   sort: z.enum(["newest", "salary_high", "salary_low"]).optional().default("newest"),
 });
 
@@ -73,13 +75,20 @@ export async function handleFeedGet(req: Request, res: Response): Promise<void> 
     res.status(400).json({ error: "Invalid query" });
     return;
   }
-  const { offset, limit, city, category, sort } = parsed.data;
+  const { offset, limit, city, category, sector, q, sort } = parsed.data;
 
   try {
-    const total = await countJobsForFeed({ city: city || undefined, category: category || undefined });
+    const total = await countJobsForFeed({
+      city: city || undefined,
+      category: category || undefined,
+      sector: sector || undefined,
+      q: q || undefined,
+    });
     const { jobs } = await listJobsForFeed({
       city: city || undefined,
       category: category || undefined,
+      sector: sector || undefined,
+      q: q || undefined,
       sort,
       offset,
       limit,

@@ -11,7 +11,8 @@ import {
   isWorkerAccount,
   type AccountKind,
 } from "@/lib/auth/accountRole";
-import { ACTIVE_MARKET } from "@/lib/launch";
+import { ACTIVE_MARKET, cityToApiParam } from "@/lib/launch";
+import { apiCityToCityId } from "@/lib/launch/cityLocalities";
 import { roleIdsToSkillLabels, skillLabelsToRoleIds } from "@/lib/launch/skillIds";
 import { formatPhoneDisplay } from "@/lib/workers/formatPhone";
 import { useFeedUser } from "@/components/feed/FeedUserProvider";
@@ -103,6 +104,7 @@ export function ProfilePageContent() {
   const [success, setSuccess] = useState<string | null>(null);
 
   const [name, setName] = useState("");
+  const [profileCityId, setProfileCityId] = useState(ACTIVE_MARKET.defaultCityId);
   const [sector, setSector] = useState("");
   const [skillRoleIds, setSkillRoleIds] = useState<string[]>([]);
   const [age, setAge] = useState("");
@@ -125,6 +127,7 @@ export function ProfilePageContent() {
         if (data?.user) {
           setName(data.user.name ?? "");
           setSector(data.user.sector ?? "");
+          setProfileCityId(apiCityToCityId(data.user.city));
         }
         const wp = data.worker_profile as WorkerProfile | null | undefined;
         if (wp) {
@@ -163,14 +166,15 @@ export function ProfilePageContent() {
     setError(null);
     setSuccess(null);
 
+    const cityApi = cityToApiParam(profileCityId);
     const body: ProfilePatchBody = {
       name: name.trim() || null,
-      city: ACTIVE_MARKET.displayName,
+      city: cityApi ?? ACTIVE_MARKET.cities[0]?.apiValue ?? "Gurugram",
       sector: sector.trim() || null,
     };
 
     if (isWorkerAccount(user) && !sector.trim()) {
-      setError("Select your area / sector in Gurugram.");
+      setError("Select your area / sector.");
       return;
     }
 
@@ -280,7 +284,9 @@ export function ProfilePageContent() {
                 </div>
                 <div className="rounded-xl border border-white/80 bg-white/90 px-4 py-3 shadow-sm">
                   <dt className="text-[10px] font-semibold uppercase tracking-wide text-muted">Market</dt>
-                  <dd className="mt-0.5 text-sm font-semibold text-foreground">{ACTIVE_MARKET.displayName}</dd>
+                  <dd className="mt-0.5 text-sm font-semibold text-foreground">
+                    {ACTIVE_MARKET.cities.find((c) => c.id === profileCityId)?.label ?? "—"}
+                  </dd>
                 </div>
               </dl>
             </div>
@@ -390,11 +396,15 @@ export function ProfilePageContent() {
                         autoComplete="name"
                       />
                     </ProfileField>
-                    <ProfileField label="City" hint="More cities coming soon.">
+                    <ProfileField label="City">
                       <select
-                        disabled
-                        value={ACTIVE_MARKET.cities[0]?.id ?? "gurugram"}
-                        className={`${inputClass} cursor-default opacity-90`}
+                        value={profileCityId}
+                        onChange={(e) => {
+                          const next = e.target.value;
+                          setProfileCityId(next);
+                          setSector("");
+                        }}
+                        className={inputClass}
                       >
                         {ACTIVE_MARKET.cities.map((c) => (
                           <option key={c.id} value={c.id}>
@@ -404,6 +414,7 @@ export function ProfilePageContent() {
                       </select>
                     </ProfileField>
                     <LocalitySelect
+                      cityId={profileCityId}
                       className="sm:col-span-2"
                       value={sector}
                       onChange={setSector}

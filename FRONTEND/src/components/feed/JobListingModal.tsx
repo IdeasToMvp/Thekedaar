@@ -317,7 +317,13 @@ export function JobListingModal({ open, cityId, job, onClose, onSuccess }: Props
             <select
               required
               value={form.cityId}
-              onChange={(e) => setForm((f) => ({ ...f, cityId: e.target.value }))}
+              onChange={(e) =>
+                setForm((f) => ({
+                  ...f,
+                  cityId: e.target.value,
+                  sector: "",
+                }))
+              }
               className="mt-1.5 w-full rounded-xl border border-border bg-background px-3 py-2.5 text-sm"
             >
               {ACTIVE_MARKET.cities.map((c) => (
@@ -345,6 +351,7 @@ export function JobListingModal({ open, cityId, job, onClose, onSuccess }: Props
           </label>
 
           <LocalitySelect
+            cityId={form.cityId}
             className="mt-4"
             value={form.sector}
             onChange={(sector) => setForm((f) => ({ ...f, sector }))}

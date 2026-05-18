@@ -40,33 +40,53 @@ export type LaunchMarket = {
   salaryBands: LaunchSalaryBand[];
 };
 
+const SHARED_ROLES: LaunchRole[] = [
+  { id: "maid", label: "Maid / House help", icon: "🧹", apiCategory: "Maid", aliases: ["House help"] },
+  { id: "cook", label: "Cook", icon: "👨‍🍳", apiCategory: "Cook", aliases: ["Chef"] },
+  {
+    id: "shop-helper",
+    label: "Shop helper",
+    icon: "🛒",
+    apiCategory: "Shop helper",
+    aliases: ["Shop Helper", "Retail helper", "Helper"],
+  },
+];
+
+const SHARED_SALARY_BANDS: LaunchSalaryBand[] = [
+  { id: "all", label: "Any salary", shortLabel: "Any" },
+  { id: "10-15", label: "₹10,000 – ₹15,000", shortLabel: "₹10k–15k" },
+  { id: "15-25", label: "₹15,000 – ₹25,000", shortLabel: "₹15k–25k" },
+  { id: "25+", label: "₹25,000+", shortLabel: "₹25k+" },
+];
+
 export const GURUGRAM_LAUNCH: LaunchMarket = {
   id: "gurugram-v1",
   displayName: "Gurugram",
   regionLabel: "Gurugram · Launch city",
   defaultCityId: "gurugram",
   cities: [{ id: "gurugram", label: "Gurugram", apiValue: "Gurugram" }],
-  roles: [
-    { id: "maid", label: "Maid / House help", icon: "🧹", apiCategory: "Maid", aliases: ["House help"] },
-    { id: "cook", label: "Cook", icon: "👨‍🍳", apiCategory: "Cook", aliases: ["Chef"] },
-    {
-      id: "shop-helper",
-      label: "Shop helper",
-      icon: "🛒",
-      apiCategory: "Shop helper",
-      aliases: ["Shop Helper", "Retail helper", "Helper"],
-    },
-  ],
-  salaryBands: [
-    { id: "all", label: "Any salary", shortLabel: "Any" },
-    { id: "10-15", label: "₹10,000 – ₹15,000", shortLabel: "₹10k–15k" },
-    { id: "15-25", label: "₹15,000 – ₹25,000", shortLabel: "₹15k–25k" },
-    { id: "25+", label: "₹25,000+", shortLabel: "₹25k+" },
-  ],
+  roles: SHARED_ROLES,
+  salaryBands: SHARED_SALARY_BANDS,
 };
 
-/** Active market for the product — point to another config when you launch new cities. */
-export const ACTIVE_MARKET: LaunchMarket = GURUGRAM_LAUNCH;
+export const MULTI_CITY_MARKET: LaunchMarket = {
+  id: "ncr-metro-v1",
+  displayName: "India",
+  regionLabel: "Delhi NCR · Gurugram · Noida · Bangalore · Mumbai",
+  defaultCityId: "gurugram",
+  cities: [
+    { id: "gurugram", label: "Gurugram", apiValue: "Gurugram" },
+    { id: "delhi", label: "Delhi", apiValue: "Delhi" },
+    { id: "noida", label: "Noida", apiValue: "Noida" },
+    { id: "bangalore", label: "Bangalore", apiValue: "Bangalore" },
+    { id: "mumbai", label: "Mumbai", apiValue: "Mumbai" },
+  ],
+  roles: SHARED_ROLES,
+  salaryBands: SHARED_SALARY_BANDS,
+};
+
+/** Active market for the product */
+export const ACTIVE_MARKET: LaunchMarket = MULTI_CITY_MARKET;
 
 export function getLaunchCity(cityId: string): LaunchCity | undefined {
   return ACTIVE_MARKET.cities.find((c) => c.id === cityId);
@@ -155,7 +175,7 @@ export function launchHighlights(jobs: FeedJob[]): { label: string; sub: string 
   return ACTIVE_MARKET.roles
     .map((role) => ({
       label: `${counts.get(role.id) ?? 0} ${role.label.toLowerCase()} roles`,
-      sub: `Open in ${ACTIVE_MARKET.displayName}`,
+      sub: "Open roles on feed",
     }))
     .filter((h) => !h.label.startsWith("0 "));
 }

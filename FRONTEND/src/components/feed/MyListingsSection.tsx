@@ -3,16 +3,27 @@
 import Link from "next/link";
 import type { FeedJob } from "@/lib/jobs/types";
 import { MyListingCard } from "./MyListingCard";
+import { FeedSearchBar } from "./FeedSearchBar";
 
 type Props = {
   listings: FeedJob[];
   loading?: boolean;
   compact?: boolean;
+  searchQuery?: string;
+  onSearchChange?: (q: string) => void;
   onEditJob?: (job: FeedJob) => void;
   onCloseJob?: (job: FeedJob) => void;
 };
 
-export function MyListingsSection({ listings, loading, compact = false, onEditJob, onCloseJob }: Props) {
+export function MyListingsSection({
+  listings,
+  loading,
+  compact = false,
+  searchQuery = "",
+  onSearchChange,
+  onEditJob,
+  onCloseJob,
+}: Props) {
   const preview = compact ? listings.slice(0, 3) : listings;
 
   return (
@@ -33,6 +44,15 @@ export function MyListingsSection({ listings, loading, compact = false, onEditJo
           </Link>
         ) : null}
       </div>
+
+      {!compact && onSearchChange ? (
+        <FeedSearchBar
+          className="mt-4 max-w-md"
+          value={searchQuery}
+          onChange={onSearchChange}
+          placeholder="Search your listings by title, role, area…"
+        />
+      ) : null}
 
       {loading ? (
         <ul className="mt-4 grid list-none grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">

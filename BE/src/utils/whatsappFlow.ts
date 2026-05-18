@@ -104,9 +104,7 @@ export function availabilityMenuPrompt(): string {
   );
 }
 
-export function cityMenuPrompt(): string {
-  return "Sheher?\n\n1) Gurugram\n\nReply *1*\n(back = previous)";
-}
+export { cityMenuPrompt } from "../data/cityLocalities";
 
 export function fullAddressPrompt(): string {
   return (

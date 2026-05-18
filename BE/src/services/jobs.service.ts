@@ -1,4 +1,5 @@
 import { supabaseAdmin } from "./supabase.service";
+import { buildOrIlikeFilter, hasSearchQuery, ilikePattern } from "../utils/feedSearch";
 import { formatPublicLocation } from "../utils/publicLocation";
 import {
   assertUserCanAuthenticate,
@@ -522,6 +523,8 @@ function jobVisibleOnPublicFeed(
 export async function listJobsForFeed(input: {
   city?: string;
   category?: string;
+  sector?: string;
+  q?: string;
   sort: "newest" | "salary_high" | "salary_low";
   offset: number;
   limit: number;
@@ -532,6 +535,14 @@ export async function listJobsForFeed(input: {
 
   if (input.city) q = q.ilike("city", input.city);
   if (input.category) q = q.ilike("category", input.category);
+  if (input.sector) q = q.ilike("sector", ilikePattern(input.sector));
+  if (hasSearchQuery(input.q)) {
+    const orFilter = buildOrIlikeFilter(
+      ["title", "category", "sector", "description"],
+      input.q!,
+    );
+    if (orFilter) q = q.or(orFilter);
+  }
 
   if (input.sort === "newest") q = q.order("created_at", { ascending: false });
   else if (input.sort === "salary_high") q = q.order("salary", { ascending: false, nullsFirst: false });
@@ -557,11 +568,24 @@ export async function listJobsForFeed(input: {
   return { jobs, rawRows: rows };
 }
 
-export async function countJobsForFeed(input: { city?: string; category?: string }): Promise<number> {
+export async function countJobsForFeed(input: {
+  city?: string;
+  category?: string;
+  sector?: string;
+  q?: string;
+}): Promise<number> {
   const sb = supabaseAdmin();
   let q = sb.from("jobs").select("id", { count: "exact", head: true });
   if (input.city) q = q.ilike("city", input.city);
   if (input.category) q = q.ilike("category", input.category);
+  if (input.sector) q = q.ilike("sector", ilikePattern(input.sector));
+  if (hasSearchQuery(input.q)) {
+    const orFilter = buildOrIlikeFilter(
+      ["title", "category", "sector", "description"],
+      input.q!,
+    );
+    if (orFilter) q = q.or(orFilter);
+  }
   const { count, error } = await q;
   if (error) throw error;
   return count ?? 0;

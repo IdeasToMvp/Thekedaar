@@ -1,6 +1,8 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
+import { filterListingsBySearch } from "@/lib/jobs/filterListings";
+import { useDebouncedValue } from "@/lib/useDebouncedValue";
 import type { ActivityResponse } from "@/lib/jobs/activity";
 import type { FeedJob } from "@/lib/jobs/types";
 import { isEmployerAccount } from "@/lib/auth/accountRole";
@@ -21,6 +23,13 @@ export function MyListingsPageContent() {
   const [listingModalOpen, setListingModalOpen] = useState(false);
   const [editingJob, setEditingJob] = useState<FeedJob | null>(null);
   const [closingJob, setClosingJob] = useState<FeedJob | null>(null);
+  const [searchQuery, setSearchQuery] = useState("");
+  const debouncedSearch = useDebouncedValue(searchQuery.trim(), 400);
+
+  const filteredListings = useMemo(
+    () => filterListingsBySearch(listings, debouncedSearch),
+    [listings, debouncedSearch],
+  );
 
   const loadListings = useCallback(async () => {
     await withLoading(async () => {
@@ -71,8 +80,10 @@ export function MyListingsPageContent() {
                 <p className="mb-4 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">{error}</p>
               ) : null}
               <MyListingsSection
-                listings={listings}
+                listings={filteredListings}
                 loading={listingsLoading || userLoading}
+                searchQuery={searchQuery}
+                onSearchChange={setSearchQuery}
                 onEditJob={(job) => {
                   setEditingJob(job);
                   setListingModalOpen(true);
