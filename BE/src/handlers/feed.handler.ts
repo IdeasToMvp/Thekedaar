@@ -2,7 +2,7 @@ import type { Request, Response } from "express";
 import { z } from "zod";
 import type { RequestWithSession } from "../middleware/requireSession";
 import { getWorkerApplicationMap } from "../services/applications.service";
-import { getUserCapabilities } from "../services/user.service";
+import { getUserById, getUserCapabilities } from "../services/user.service";
 import {
   buildFeedLimits,
   countJobsForFeed,
@@ -57,8 +57,17 @@ function jobsForViewer(
   });
 }
 
+/** JWT can outlive the user row (DB reset, new prod project). Don't fail public feed for that. */
+async function sessionIfUserExists(req: Request) {
+  const claims = (req as RequestWithSession).session;
+  if (!claims) return undefined;
+  const user = await getUserById(claims.sub);
+  if (!user) return undefined;
+  return claims;
+}
+
 export async function handleFeedGet(req: Request, res: Response): Promise<void> {
-  const session = (req as RequestWithSession).session;
+  const session = await sessionIfUserExists(req);
   const parsed = FeedQuerySchema.safeParse(req.query);
   if (!parsed.success) {
     res.status(400).json({ error: "Invalid query" });

@@ -94,7 +94,10 @@ router.get("/me", requireSession, async (req, res) => {
   const session = (req as RequestWithSession).session;
   const full = await getUserWithProfiles(session.sub);
   if (!full) {
-    return res.status(404).json({ error: "User not found" });
+    return res.status(401).json({
+      error: "Session expired. Please sign in again.",
+      code: "SESSION_STALE",
+    });
   }
   return res.status(200).json(mePayload(full));
 });

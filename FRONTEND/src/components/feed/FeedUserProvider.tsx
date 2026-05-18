@@ -30,7 +30,12 @@ export function FeedUserProvider({ children }: { children: ReactNode }) {
 
   const refreshUser = useCallback(async () => {
     const r = await fetch("/api/auth/me");
-    const data = (await r.json()) as MeResponse;
+    const data = (await r.json()) as MeResponse & { code?: string };
+    if (r.status === 401 || data.code === "SESSION_STALE") {
+      await fetch("/api/auth/logout", { method: "POST" }).catch(() => {});
+      setUser(null);
+      return;
+    }
     if (data?.user) {
       const u = { ...data.user };
       if (data.recruiter_profile) u.can_hire = true;
