@@ -3,12 +3,11 @@
 import { AuthShell } from "@/components/auth/AuthShell";
 import { defaultReturnAfterAuth, JOBS_HOME_PATH, normalizeReturnTo } from "@/lib/signIn";
 import Link from "next/link";
-import { useParams, useRouter, useSearchParams } from "next/navigation";
+import { useParams, useSearchParams } from "next/navigation";
 import { useEffect, useState } from "react";
 
 export function LoginTokenClient() {
   const params = useParams();
-  const router = useRouter();
   const searchParams = useSearchParams();
   const token = typeof params.token === "string" ? params.token : "";
   const intentParam = searchParams.get("intent");
@@ -50,7 +49,8 @@ export function LoginTokenClient() {
           setStatus("ok");
           setMessage("Signed in. Redirecting…");
           const dest = returnTo.startsWith("/") ? returnTo : JOBS_HOME_PATH;
-          router.replace(dest);
+          // Full navigation so the session cookie is applied before the next page loads.
+          window.location.assign(dest);
         }
       } catch {
         if (!cancelled) {
@@ -63,7 +63,7 @@ export function LoginTokenClient() {
     return () => {
       cancelled = true;
     };
-  }, [token, returnTo, router]);
+  }, [token, returnTo]);
 
   return (
     <AuthShell title="Completing sign-in" subtitle="Please wait while we verify your link.">
@@ -81,12 +81,18 @@ export function LoginTokenClient() {
           {message}
         </p>
         {status === "error" ? (
-          <Link
-            href="/login"
-            className="inline-flex min-h-11 items-center justify-center rounded-xl bg-brand px-6 text-sm font-semibold text-white hover:bg-brand-dark"
-          >
-            Request a new link
-          </Link>
+          <div className="space-y-3">
+            <Link
+              href="/login"
+              className="inline-flex min-h-11 w-full items-center justify-center rounded-xl bg-brand px-6 text-sm font-semibold text-white hover:bg-brand-dark"
+            >
+              Request a new link
+            </Link>
+            <p className="text-xs text-muted">
+              Links work once. If you already opened this link, request a new one. For local dev use{" "}
+              <code className="rounded bg-slate-100 px-1">http://localhost:3000</code>, not https.
+            </p>
+          </div>
         ) : null}
       </div>
     </AuthShell>

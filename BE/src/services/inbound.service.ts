@@ -262,7 +262,9 @@ function magicLoginUrl(userId: string, phone: string): Promise<string> {
   if (!webBase) return Promise.resolve("");
   return createMagicLinkForUser({ userId, phone }).then(({ token }) => {
     const host = webBase.replace(/^https?:\/\//, "").replace(/\/$/, "");
-    return `https://${host}/login/${token}?returnTo=${encodeURIComponent("/")}`;
+    const isLocal = /^(localhost|127\.0\.0\.1)(:\d+)?$/i.test(host);
+    const base = `${isLocal ? "http" : "https"}://${host}`;
+    return `${base}/login/${token}?returnTo=${encodeURIComponent("/#jobs")}`;
   });
 }
 

@@ -10,8 +10,12 @@ export type RequestLoginLinkResult =
 function webBaseUrl(): string | null {
   const raw = process.env.WEB_BASE_URL?.trim();
   if (!raw) return null;
-  const host = raw.replace(/^https?:\/\//, "").replace(/\/$/, "");
-  return `https://${host}`;
+  if (/^https?:\/\//i.test(raw)) {
+    return raw.replace(/\/$/, "");
+  }
+  const host = raw.replace(/\/$/, "");
+  const isLocal = /^(localhost|127\.0\.0\.1)(:\d+)?$/i.test(host);
+  return `${isLocal ? "http" : "https"}://${host}`;
 }
 
 function devLoginLinkExposeEnabled(): boolean {
@@ -39,7 +43,7 @@ export async function requestLoginLinkViaWhatsApp(rawPhone: string): Promise<Req
     phone: user.phone,
   });
 
-  const url = `${webBase}/login/${token}?returnTo=${encodeURIComponent("/")}`;
+  const url = `${webBase}/login/${token}?returnTo=${encodeURIComponent("/#jobs")}`;
   const body =
     "Here is your Thekedaar website link (tap to open — works once):\n\n" +
     url +
