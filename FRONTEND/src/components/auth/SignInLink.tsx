@@ -2,17 +2,17 @@
 
 import Link from "next/link";
 import { useEffect, useState } from "react";
-import { FEED_PATH, loginUrl, type LoginQuery } from "@/lib/signIn";
+import { defaultReturnAfterAuth, JOBS_HOME_PATH, loginUrl, type LoginQuery } from "@/lib/signIn";
 
 type Props = LoginQuery & {
   className?: string;
   children: React.ReactNode;
 };
 
-/** Sends logged-in users to /feed; others to /login (with optional job context). */
+/** Logged-in users go to jobs home or returnTo; others to /login. */
 export function SignInLink({ className, children, returnTo, intent, jobId }: Props) {
   const [href, setHref] = useState(() =>
-    loginUrl({ returnTo: returnTo ?? FEED_PATH, intent, jobId }),
+    loginUrl({ returnTo: returnTo ?? defaultReturnAfterAuth(intent), intent, jobId }),
   );
 
   useEffect(() => {
@@ -25,7 +25,7 @@ export function SignInLink({ className, children, returnTo, intent, jobId }: Pro
           const dest =
             returnTo && returnTo.startsWith("/") && !returnTo.startsWith("/login")
               ? returnTo
-              : FEED_PATH;
+              : defaultReturnAfterAuth(intent);
           setHref(dest);
         }
       })

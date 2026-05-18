@@ -1,7 +1,7 @@
 import Link from "next/link";
 import type { FeedJob } from "@/lib/jobs/types";
 import { formatRelativeTime, formatSalary } from "@/lib/formatRelativeTime";
-import { FEED_PATH, loginUrl } from "@/lib/signIn";
+import { JOBS_HOME_PATH, loginUrl } from "@/lib/signIn";
 
 const urgencyStyles: Record<FeedJob["urgency"], string> = {
   high: "bg-amber-100 text-amber-900",
@@ -12,7 +12,7 @@ const urgencyStyles: Record<FeedJob["urgency"], string> = {
 export function JobCard({ job }: { job: FeedJob }) {
   const isPro = job.posterSubscription.plan === "pro";
   const loginHref = loginUrl({
-    returnTo: FEED_PATH,
+    returnTo: JOBS_HOME_PATH,
     intent: "apply",
     jobId: job.id,
   });

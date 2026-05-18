@@ -1,6 +1,7 @@
 "use client";
 
 import { AuthShell } from "@/components/auth/AuthShell";
+import { defaultReturnAfterAuth, JOBS_HOME_PATH, normalizeReturnTo } from "@/lib/signIn";
 import Link from "next/link";
 import { useParams, useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useState } from "react";
@@ -10,7 +11,13 @@ export function LoginTokenClient() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const token = typeof params.token === "string" ? params.token : "";
-  const returnTo = searchParams.get("returnTo") || "/feed";
+  const intentParam = searchParams.get("intent");
+  const intent = intentParam === "apply" || intentParam === "hire" ? intentParam : undefined;
+  const returnToParam = searchParams.get("returnTo");
+  const returnTo =
+    returnToParam && returnToParam.startsWith("/") && !returnToParam.startsWith("/login")
+      ? normalizeReturnTo(returnToParam, intent)
+      : defaultReturnAfterAuth(intent);
 
   const [status, setStatus] = useState<"loading" | "ok" | "error">("loading");
   const [message, setMessage] = useState("Signing you in…");
@@ -42,7 +49,7 @@ export function LoginTokenClient() {
         if (!cancelled) {
           setStatus("ok");
           setMessage("Signed in. Redirecting…");
-          const dest = returnTo.startsWith("/") ? returnTo : "/";
+          const dest = returnTo.startsWith("/") ? returnTo : JOBS_HOME_PATH;
           router.replace(dest);
         }
       } catch {
